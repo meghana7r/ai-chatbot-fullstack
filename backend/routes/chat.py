@@ -1,6 +1,10 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from datetime import datetime
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Chat"])
 
@@ -16,6 +20,8 @@ class ChatRequest(BaseModel):
 )
 def chat(request: ChatRequest):
     user_message = request.message.strip()
+
+    logger.info(f"User Message: {user_message}")
 
     if not user_message:
         return {
