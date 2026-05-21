@@ -39,7 +39,7 @@ def chat(request: ChatRequest):
 
     if "what did i say" in lower_message:
         if last_user_message:
-            reply = f"I understand that you said '{user_message}'. Can you tell me more?"
+            reply = "I received your message. I am still learning to answer this properly."
         else:
             reply = "I don't remember any previous message yet."
 
