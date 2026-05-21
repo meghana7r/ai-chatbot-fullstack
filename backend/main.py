@@ -20,4 +20,7 @@ def home():
 
 @app.get("/health")
 def health():
-    return {"status": "success"}
+    return {
+        "status": "success",
+        "message": "Backend is running properly"
+    }

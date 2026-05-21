@@ -1,8 +1,15 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from datetime import datetime
+import logging
+import time
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Chat"])
+
+last_user_message = ""
 
 
 class ChatRequest(BaseModel):
@@ -15,7 +22,10 @@ class ChatRequest(BaseModel):
     description="Receives user message and returns chatbot response"
 )
 def chat(request: ChatRequest):
+    global last_user_message
+
     user_message = request.message.strip()
+    logger.info(f"User Message: {user_message}")
 
     if not user_message:
         return {
@@ -27,7 +37,13 @@ def chat(request: ChatRequest):
 
     lower_message = user_message.lower()
 
-    if "hello" in lower_message or "hi" in lower_message:
+    if "what did i say" in lower_message:
+        if last_user_message:
+            reply = "I received your message. I am still learning to answer this properly."
+        else:
+            reply = "I don't remember any previous message yet."
+
+    elif "hello" in lower_message or "hi" in lower_message:
         reply = "Hello! How can I help you today?"
 
     elif "how are you" in lower_message:
@@ -50,6 +66,11 @@ def chat(request: ChatRequest):
 
     else:
         reply = f"You said: {user_message}"
+
+    if "what did i say" not in lower_message:
+        last_user_message = user_message
+
+    time.sleep(1)
 
     return {
         "status": "success",

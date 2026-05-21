@@ -1,51 +1,104 @@
+````md
 # AI Chatbot Backend
 
-An internship project — a backend service for an AI chatbot built using FastAPI FastAPI and Python.
+Backend service for the AI Chatbot internship project built using FastAPI.
 
 ---
 
-# Tech Stack
+## Features
 
-**Framework:** FastAPI
-
-**Language:** Python
-
-**Server:** Uvicorn
-
-**Validation:** Pydantic
-
-**API Type:** REST API
-
----
-
-# Features
-
-* FastAPI backend setup
-* Chatbot API development
-* POST request handling
-* Request validation using Pydantic
-* Frontend-backend integration
-* CORS enabled
-* Swagger API documentation
-* Modular route architecture
+- FastAPI backend setup
+- REST API endpoints
+- Frontend-backend integration
+- Intelligent chatbot replies
+- Empty message validation
+- Chatbot memory feature
+- Request logging
+- Swagger API documentation
+- Health monitoring endpoint
+- Timestamp-based responses
 
 ---
 
-# Getting Started
+## Tech Stack
 
-## Install dependencies
+- Python
+- FastAPI
+- Uvicorn
+- Pydantic
 
-```bash
-pip install -r requirements.txt
+---
+
+## Project Structure
+
+```text
+backend/
+├── main.py
+├── requirements.txt
+├── routes/
+│   ├── __init__.py
+│   └── chat.py
+└── README.md
+````
+
+---
+
+## API Endpoints
+
+### Home Endpoint
+
+```http
+GET /
 ```
 
-## Run development server
+### Health Check Endpoint
 
-```bash
-uvicorn main:app --reload
+```http
+GET /health
 ```
 
-Open:
+### Chat Endpoint
+
+```http
+POST /chat
+```
+
+### Example Request
+
+```json
+{
+  "message": "Hello"
+}
+```
+
+### Example Response
+
+```json
+{
+  "status": "success",
+  "timestamp": "15:00:00",
+  "user_message": "Hello",
+  "bot_reply": "Hello! How can I help you today?"
+}
+```
+
+---
+
+## Run Backend
+
+### Install Dependencies
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+### Run Server
+
+```bash
+python3 -m uvicorn main:app --reload
+```
+
+Backend URL:
 
 ```text
 http://127.0.0.1:8000
@@ -59,83 +112,9 @@ http://127.0.0.1:8000/docs
 
 ---
 
-# Project Structure
-
-```text
-Backend/
-├── main.py
-├── requirements.txt
-├── .gitignore
-├── routes/
-│   ├── __init__.py
-│   └── chat.py
-└── venv/
-```
-
----
-
-# API Endpoints
-
-## Home Route
-
-```http
-GET /
-```
-
----
-
-## Health Check Route
-
-```http
-GET /health
-```
-
----
-
-## Chat API
-
-```http
-POST /chat
-```
-
-Request Body:
-
-```json
-{
-  "message": "Hello AI"
-}
-```
-
----
-
-# Frontend Connection
-
-Frontend connects using:
-
-```text
-POST http://127.0.0.1:8000/chat
-```
-
-CORS enabled for:
-
-```text
-http://localhost:3000
-```
-
----
-
-# Week Progress
-
-✅ Day 1 — Backend setup, FastAPI server, API routes
-
-✅ Day 2 — Chat API, frontend-backend integration, route organization
-
-⬜ Day 3 — AI integration
-
-⬜ Day 4 — Testing and deployment
-
----
-
-# Developer
+## Developer
 
 Amrutha Varshini — Backend Developer Intern
+
+```
+```
