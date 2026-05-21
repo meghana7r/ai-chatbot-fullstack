@@ -26,12 +26,13 @@ def chat(request: ChatRequest):
         reply = "I am doing well! How can I assist you?"
     elif "your name" in lower_message:
         reply = "I am your AI chatbot assistant."
-    elif "thank" in lower_message:
+    elif "thankyou" in lower_message:
         reply = "You're welcome!"
     else:
         reply = f"You said: {user_message}"
 
     return {
-        "user_message": user_message,
-        "bot_reply": reply
-    }
+    "status": "success",
+    "user_message": user_message,
+    "bot_reply": reply
+}
