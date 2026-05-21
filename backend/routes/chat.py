@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
+from datetime import datetime
 
 router = APIRouter(tags=["Chat"])
 
@@ -28,11 +29,20 @@ def chat(request: ChatRequest):
         reply = "I am your AI chatbot assistant."
     elif "thankyou" in lower_message:
         reply = "You're welcome!"
+    elif "bye" in lower_message:
+        reply = "Goodbye! Have a great day!"
+
+    elif "help" in lower_message:
+        reply = "I can help answer your questions."
+
+    elif "who created you" in lower_message:
+        reply = "I was created as part of an AI chatbot internship project."
     else:
         reply = f"You said: {user_message}"
 
     return {
     "status": "success",
+    "timestamp": datetime.now().strftime("%H:%M:%S"),
     "user_message": user_message,
     "bot_reply": reply
 }
