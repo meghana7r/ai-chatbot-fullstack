@@ -9,6 +9,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Chat"])
 
+last_user_message = ""
+
 
 class ChatRequest(BaseModel):
     message: str = Field(..., example="Hello AI")
@@ -20,6 +22,8 @@ class ChatRequest(BaseModel):
     description="Receives user message and returns chatbot response"
 )
 def chat(request: ChatRequest):
+    global last_user_message
+
     user_message = request.message.strip()
 
     logger.info(f"User Message: {user_message}")
@@ -55,10 +59,17 @@ def chat(request: ChatRequest):
     elif "who created you" in lower_message:
         reply = "I was created as part of an AI chatbot internship project."
 
+    elif "what did i say" in lower_message:
+        if last_user_message:
+            reply = f"You previously said: {last_user_message}"
+        else:
+            reply = "I don't remember any previous message yet."
+
     else:
         reply = f"You said: {user_message}"
 
-    # Simulate AI typing delay
+    last_user_message = user_message
+
     time.sleep(1)
 
     return {
