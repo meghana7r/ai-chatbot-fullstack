@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from datetime import datetime
 import logging
+import time
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -56,6 +57,9 @@ def chat(request: ChatRequest):
 
     else:
         reply = f"You said: {user_message}"
+
+    # Simulate AI typing delay
+    time.sleep(1)
 
     return {
         "status": "success",
