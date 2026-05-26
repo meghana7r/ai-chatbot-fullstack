@@ -13,7 +13,7 @@ export async function sendMessage(message: string): Promise<string> {
     }
 
     const data = await response.json();
-    return data.response;
+    return data.bot_reply;
   } catch (error) {
     return 'Sorry, I could not connect to the server. Please try again.';
   }
