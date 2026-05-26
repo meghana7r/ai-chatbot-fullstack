@@ -1,120 +1,58 @@
-````md
-# AI Chatbot Backend
-
-Backend service for the AI Chatbot internship project built using FastAPI.
-
----
-
-## Features
-
-- FastAPI backend setup
-- REST API endpoints
-- Frontend-backend integration
-- Intelligent chatbot replies
-- Empty message validation
-- Chatbot memory feature
-- Request logging
-- Swagger API documentation
-- Health monitoring endpoint
-- Timestamp-based responses
+# AI Chatbot — Backend
+**Developer: Amrutha Varshini**
+**Stack: Python · FastAPI · FAISS · Groq (Llama 3) · SentenceTransformers**
 
 ---
 
-## Tech Stack
-
-- Python
-- FastAPI
-- Uvicorn
-- Pydantic
-
----
-
-## Project Structure
-
-```text
+## Folder Structure
+```
 backend/
-├── main.py
-├── requirements.txt
-├── routes/
-│   ├── __init__.py
-│   └── chat.py
-└── README.md
-````
+├── main.py                 ← FastAPI app entry point + CORS
+├── rag_engine.py           ← FAISS vector DB + Groq LLM + RAG pipeline
+├── document_processor.py  ← PDF / DOCX / TXT text extraction
+├── requirements.txt        ← Python dependencies
+├── .env                    ← API keys (never commit this!)
+├── .gitignore
+└── routes/
+    ├── chat.py             ← POST /api/chat
+    ├── upload.py           ← POST /api/upload
+    └── health.py           ← GET /health
+```
+
+---
+
+## Setup
+
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python3 main.py
+```
+
+Add your Groq API key to `.env` before running.
 
 ---
 
 ## API Endpoints
 
-### Home Endpoint
+| Method | URL | Description |
+|--------|-----|-------------|
+| GET | /health | Backend health check |
+| POST | /api/chat | Send message, get RAG response |
+| POST | /api/upload | Upload PDF/DOCX/TXT to FAISS |
+| GET | /api/upload/stats | View indexed documents |
+| DELETE | /api/upload/clear | Clear all documents |
+| DELETE | /api/chat/clear | Clear chat |
 
-```http
-GET /
-```
-
-### Health Check Endpoint
-
-```http
-GET /health
-```
-
-### Chat Endpoint
-
-```http
-POST /chat
-```
-
-### Example Request
-
-```json
-{
-  "message": "Hello"
-}
-```
-
-### Example Response
-
-```json
-{
-  "status": "success",
-  "timestamp": "15:00:00",
-  "user_message": "Hello",
-  "bot_reply": "Hello! How can I help you today?"
-}
-```
+API docs auto-available at: **http://localhost:8000/docs**
 
 ---
 
-## Run Backend
-
-### Install Dependencies
-
-```bash
-python3 -m pip install -r requirements.txt
-```
-
-### Run Server
-
-```bash
-python3 -m uvicorn main:app --reload
-```
-
-Backend URL:
-
-```text
-http://127.0.0.1:8000
-```
-
-Swagger Docs:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
----
-
-## Developer
-
-Amrutha Varshini — Backend Developer Intern
-
-```
-```
+## RAG Pipeline
+1. User uploads document → text extracted → split into chunks
+2. Chunks embedded using SentenceTransformer → stored in FAISS
+3. User asks question → question embedded → FAISS finds similar chunks
+4. Relevant chunks + question sent to Groq LLM → AI answer returned
+5. If question is unrelated to document → answers from general knowledge

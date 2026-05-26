@@ -1,80 +1,65 @@
 from fastapi import APIRouter
-from pydantic import BaseModel, Field
-from datetime import datetime
-import logging
+from pydantic import BaseModel
+from typing import List, Optional
 import time
+from rag_engine import rag_answer
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+router = APIRouter()
 
-router = APIRouter(tags=["Chat"])
 
-last_user_message = ""
+class Message(BaseModel):
+    role: str        # "user" or "bot"
+    content: str
+    timestamp: Optional[float] = None
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(..., example="Hello AI")
+    message: str
+    chat_history: Optional[List[Message]] = []
 
 
-@router.post(
-    "/chat",
-    summary="Chatbot Communication API",
-    description="Receives user message and returns chatbot response"
-)
+class ChatResponse(BaseModel):
+    response: str
+    sources: List[str]
+    used_rag: bool
+    chunks_retrieved: int
+    timestamp: float
+    status: str
+
+
+@router.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
-    global last_user_message
-
+    """
+    RAG-powered chat endpoint.
+    1. Retrieves relevant chunks from FAISS
+    2. Sends query + context to Groq LLM
+    3. Returns AI answer with source info
+    """
     user_message = request.message.strip()
-    logger.info(f"User Message: {user_message}")
 
     if not user_message:
-        return {
-            "status": "error",
-            "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "user_message": "",
-            "bot_reply": "Please enter a message."
-        }
+        return ChatResponse(
+            response="Please type a message!",
+            sources=[],
+            used_rag=False,
+            chunks_retrieved=0,
+            timestamp=time.time(),
+            status="error"
+        )
 
-    lower_message = user_message.lower()
+    history = [m.model_dump() for m in request.chat_history]
+    result = rag_answer(user_message, chat_history=history)
 
-    if "what did i say" in lower_message:
-        if last_user_message:
-            reply = "I received your message. I am still learning to answer this properly."
-        else:
-            reply = "I don't remember any previous message yet."
+    return ChatResponse(
+        response=result["answer"],
+        sources=result["sources"],
+        used_rag=result["used_rag"],
+        chunks_retrieved=result["chunks_retrieved"],
+        timestamp=time.time(),
+        status="success"
+    )
 
-    elif "hello" in lower_message or "hi" in lower_message:
-        reply = "Hello! How can I help you today?"
 
-    elif "how are you" in lower_message:
-        reply = "I am doing well! How can I assist you?"
-
-    elif "your name" in lower_message:
-        reply = "I am your AI chatbot assistant."
-
-    elif "thank" in lower_message:
-        reply = "You're welcome!"
-
-    elif "bye" in lower_message:
-        reply = "Goodbye! Have a great day!"
-
-    elif "help" in lower_message:
-        reply = "I can help answer your questions."
-
-    elif "who created you" in lower_message:
-        reply = "I was created as part of an AI chatbot internship project."
-
-    else:
-        reply = f"You said: {user_message}"
-
-    if "what did i say" not in lower_message:
-        last_user_message = user_message
-
-    time.sleep(1)
-
-    return {
-        "status": "success",
-        "timestamp": datetime.now().strftime("%H:%M:%S"),
-        "user_message": user_message,
-        "bot_reply": reply
-    }
+@router.delete("/chat/clear")
+def clear_chat():
+    return {"message": "Chat cleared!", "status": "success"}

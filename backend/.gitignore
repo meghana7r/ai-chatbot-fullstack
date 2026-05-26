@@ -1,0 +1,18 @@
+# Virtual environment
+venv/
+.venv/
+
+# Environment variables (NEVER commit this - contains API keys!)
+.env
+
+# FAISS index files
+*.index
+*.pkl
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Mac files
+.DS_Store
