@@ -1,3 +1,6 @@
+# Predefined Question & Answer Dataset
+# This is used for rule-based keyword matching (Week 2 task)
+
 QA_DATASET = [
     {
         "keywords": ["hello", "hi", "hey", "greetings"],
@@ -5,7 +8,7 @@ QA_DATASET = [
     },
     {
         "keywords": ["how are you", "how do you do", "how's it going"],
-        "response": "I'm doing great, thanks for asking! I'm ready to help you. 😊"
+        "response": "I'm doing great, thanks for asking! Ready to help you. 😊"
     },
     {
         "keywords": ["bye", "goodbye", "see you", "take care"],
@@ -21,7 +24,7 @@ QA_DATASET = [
     },
     {
         "keywords": ["help", "support", "what can you do"],
-        "response": "I can answer questions, help with documents via RAG, and have conversations!"
+        "response": "I can answer your questions and have conversations with you!"
     },
     {
         "keywords": ["python", "programming", "code", "coding"],
@@ -29,7 +32,7 @@ QA_DATASET = [
     },
     {
         "keywords": ["machine learning", "ml", "artificial intelligence", "ai", "deep learning"],
-        "response": "Machine Learning and AI are fascinating fields! This chatbot uses RAG and LLM concepts."
+        "response": "Machine Learning and AI are fascinating fields! This chatbot uses Groq's Llama 3 AI model."
     },
     {
         "keywords": ["data science", "data analyst", "statistics", "data"],
@@ -44,29 +47,30 @@ QA_DATASET = [
         "response": "React is a popular JavaScript library for building user interfaces!"
     },
     {
-        "keywords": ["rag", "retrieval", "document", "upload"],
-        "response": "RAG stands for Retrieval Augmented Generation — it lets AI answer from your documents!"
-    },
-    {
-        "keywords": ["joke", "funny", "laugh"],
+        "keywords": ["joke", "funny", "laugh", "humor"],
         "response": "Why do programmers prefer dark mode? Because light attracts bugs! 🐛😄"
     },
     {
         "keywords": ["internship", "intern", "project", "company"],
-        "response": "Internships are great for real-world experience! Good luck with your project!"
-    },
-    {
-        "keywords": ["faiss", "vector", "embedding", "similarity"],
-        "response": "FAISS is a vector database by Meta used to store and search document embeddings efficiently!"
+        "response": "Internships are great for gaining real world experience. Good luck with your project!"
     },
     {
         "keywords": ["groq", "llama", "llm", "language model"],
-        "response": "Groq provides fast inference for Llama 3 — the AI model powering this chatbot!"
+        "response": "Groq provides fast AI inference using Llama 3 — the AI model powering this chatbot!"
     },
     {
-        "keywords": ["weather", "temperature", "rain"],
-        "response": "I don't have real-time weather data, please check a weather app!"
+        "keywords": ["weather", "temperature", "rain", "sunny"],
+        "response": "I don't have real-time weather data. Please check a weather app!"
+    },
+    {
+        "keywords": ["time", "date", "today"],
+        "response": "I don't have access to real-time data. Please check your device clock!"
+    },
+    {
+        "keywords": ["study", "learn", "tutorial", "resources"],
+        "response": "Great resources: Python → docs.python.org, FastAPI → fastapi.tiangolo.com, React → react.dev"
     },
 ]
 
-DEFAULT_RESPONSE = "I'm not sure about that. Could you rephrase? Type 'help' to see what I can do!"
+# Default response when no keyword matches
+DEFAULT_RESPONSE = None  # None means → ask Groq AI instead

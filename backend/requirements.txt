@@ -1,21 +1,6 @@
-fastapi==0.110.0
-uvicorn==0.29.0
+fastapi
+uvicorn
 pydantic
-python-multipart==0.0.9
-python-dotenv==1.0.1
-
-# LLM - Groq
+python-multipart
+python-dotenv
 groq
-
-# Embeddings
-sentence-transformers==2.7.0
-
-# Vector Database
-faiss-cpu==1.9.0.post1
-
-# Document processing
-pypdf==4.2.0
-python-docx==1.1.0
-
-# Text splitting
-langchain-text-splitters==0.0.2

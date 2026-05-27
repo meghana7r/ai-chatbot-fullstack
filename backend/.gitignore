@@ -3,9 +3,4 @@ venv/
 .env
 __pycache__/
 *.pyc
-*.pyo
-faiss_index.index
-faiss_index.pkl
-*.index
-*.pkl
 .DS_Store
