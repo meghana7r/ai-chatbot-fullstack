@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import chat, health
+from routes import chat
 
 # Create FastAPI app
 app = FastAPI(
@@ -19,7 +19,7 @@ app.add_middleware(
 )
 
 # Register routes
-app.include_router(health.router)
+
 app.include_router(chat.router, prefix="/api")
 
 if __name__ == "__main__":
