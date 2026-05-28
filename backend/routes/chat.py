@@ -1,30 +1,25 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import List, Optional
 import time
 from chatbot_engine import get_response
 
 router = APIRouter()
 
 
-class Message(BaseModel):
-    role: str        
-    content: str
-
-
+# ── Request Model ─────────────────────────────────────────────────────────────
 class ChatRequest(BaseModel):
     message: str
-    chat_history: Optional[List[Message]] = []
 
+
+# ── Response Model ────────────────────────────────────────────────────────────
 class ChatResponse(BaseModel):
     response: str
-    source: str      
+    source: str
     timestamp: float
     status: str
-@router.get("/")
-def root():
-    return {"message": "AI Chatbot API is running!", "status": "ok"}
 
+
+# ── Chat Endpoint ─────────────────────────────────────────────────────────────
 @router.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
     user_message = request.message.strip()
@@ -37,9 +32,7 @@ def chat(request: ChatRequest):
             status="error"
         )
 
-    history = [m.model_dump() for m in request.chat_history]
-
-    result = get_response(user_message, chat_history=history)
+    result = get_response(user_message)
 
     return ChatResponse(
         response=result["response"],
@@ -47,6 +40,3 @@ def chat(request: ChatRequest):
         timestamp=time.time(),
         status="success"
     )
-
-
-

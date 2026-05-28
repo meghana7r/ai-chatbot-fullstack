@@ -2,19 +2,15 @@ import os
 import re
 from groq import Groq
 from dotenv import load_dotenv
-from dataset import QA_DATASET, DEFAULT_RESPONSE
+from dataset import QA_DATASET
 
 load_dotenv()
 
-# Connect to Groq AI
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 
 def keyword_match(user_message: str):
-    """
-    Match user message with Q&A dataset using whole word keyword matching.
-    """
     message_lower = user_message.lower().strip()
 
     best_match = None
@@ -23,7 +19,6 @@ def keyword_match(user_message: str):
     for qa in QA_DATASET:
         score = 0
         for keyword in qa["keywords"]:
-            # Check whole word only — not inside other words!
             pattern = r'\b' + re.escape(keyword.lower()) + r'\b'
             if re.search(pattern, message_lower):
                 score += 1
@@ -38,24 +33,17 @@ def keyword_match(user_message: str):
     return None
 
 
-def ask_groq(user_message: str, chat_history: list = []) -> str:
-    """
-    Ask Groq AI for an answer when no keyword match found.
-    """
+def ask_groq(user_message: str) -> str:
     messages = [
         {
             "role": "system",
             "content": "You are a helpful and friendly AI assistant. Answer clearly and concisely."
+        },
+        {
+            "role": "user",
+            "content": user_message
         }
     ]
-
-    for msg in chat_history[-6:]:
-        messages.append({
-            "role": msg["role"] if msg["role"] != "bot" else "assistant",
-            "content": msg["content"]
-        })
-
-    messages.append({"role": "user", "content": user_message})
 
     response = groq_client.chat.completions.create(
         model=GROQ_MODEL,
@@ -67,12 +55,7 @@ def ask_groq(user_message: str, chat_history: list = []) -> str:
     return response.choices[0].message.content
 
 
-def get_response(user_message: str, chat_history: list = []) -> dict:
-    """
-    Main chatbot function:
-    1. First try keyword matching
-    2. If no match → ask Groq AI
-    """
+def get_response(user_message: str) -> dict:
     keyword_response = keyword_match(user_message)
 
     if keyword_response:
@@ -81,7 +64,7 @@ def get_response(user_message: str, chat_history: list = []) -> dict:
             "source": "keyword_match"
         }
     else:
-        ai_response = ask_groq(user_message, chat_history)
+        ai_response = ask_groq(user_message)
         return {
             "response": ai_response,
             "source": "groq_ai"
