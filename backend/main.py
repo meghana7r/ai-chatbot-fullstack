@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import chat,info
+from routes import chat, nlp
 
 app = FastAPI(
     title="AI Chatbot API",
-    description="Simple AI Chatbot using keyword matching + Groq LLM",
+    description="AI Chatbot using keyword matching + NLP + Groq LLM",
     version="1.0.0"
 )
 
@@ -16,9 +16,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 app.include_router(chat.router, prefix="/api")
-app.include_router(info.router, prefix="/api")
+app.include_router(nlp.router, prefix="/api")
 
 if __name__ == "__main__":
     import uvicorn

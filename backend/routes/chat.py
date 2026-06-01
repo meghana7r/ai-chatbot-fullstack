@@ -6,12 +6,10 @@ from chatbot_engine import get_response
 router = APIRouter()
 
 
-# ── Request Model ─────────────────────────────────────────────────────────────
 class ChatRequest(BaseModel):
     message: str
 
 
-# ── Response Model ────────────────────────────────────────────────────────────
 class ChatResponse(BaseModel):
     response: str
     source: str
@@ -19,7 +17,6 @@ class ChatResponse(BaseModel):
     status: str
 
 
-# ── Chat Endpoint ─────────────────────────────────────────────────────────────
 @router.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
     user_message = request.message.strip()
