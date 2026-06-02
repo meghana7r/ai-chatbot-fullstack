@@ -10,12 +10,10 @@ load_dotenv()
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
+WORD_LIMIT = 3
+
 
 def keyword_match(original_message: str, processed_message: str):
-    """
-    Match user message with Q&A dataset.
-    Uses BOTH original and processed message for better matching!
-    """
     original_lower = original_message.lower().strip()
     processed_lower = processed_message.lower().strip()
 
@@ -26,15 +24,11 @@ def keyword_match(original_message: str, processed_message: str):
         score = 0
         for keyword in qa["keywords"]:
             keyword_lower = keyword.lower()
-
-            # Check in original message
             pattern = r'\b' + re.escape(keyword_lower) + r'\b'
             if re.search(pattern, original_lower):
-                score += 2  # higher score for original match
-
-            # Check in processed message
+                score += 2
             elif re.search(pattern, processed_lower):
-                score += 1  # lower score for processed match
+                score += 1
 
         if score > best_score:
             best_score = score
@@ -46,20 +40,23 @@ def keyword_match(original_message: str, processed_message: str):
     return None
 
 
-def ask_groq(user_message: str) -> str:
-    """
-    Ask Groq AI when no keyword match found.
-    """
+def ask_groq(user_message: str, chat_history: list = []) -> str:
     messages = [
         {
             "role": "system",
-            "content": "You are a helpful and friendly AI assistant. Answer clearly and concisely."
-        },
-        {
-            "role": "user",
-            "content": user_message
+            "content": "You are a helpful and friendly AI assistant. Answer clearly and concisely. Remember the conversation history and reply accordingly."
         }
     ]
+
+    # Add last 10 messages from chat history so bot remembers!
+    for msg in chat_history[-10:]:
+        messages.append({
+            "role": msg["role"] if msg["role"] != "bot" else "assistant",
+            "content": msg["content"]
+        })
+
+    # Add current message
+    messages.append({"role": "user", "content": user_message})
 
     response = groq_client.chat.completions.create(
         model=GROQ_MODEL,
@@ -71,18 +68,21 @@ def ask_groq(user_message: str) -> str:
     return response.choices[0].message.content
 
 
-def get_response(user_message: str) -> dict:
-    """
-    Main chatbot function:
-    1. Run NLP preprocessing on user message
-    2. Try keyword matching with processed text
-    3. If no match → ask Groq AI
-    """
-    # Step 1: Run NLP pipeline
+def get_response(user_message: str, chat_history: list = []) -> dict:
     nlp_result = preprocess(user_message)
     processed_message = nlp_result["processed_text"]
 
-    # Step 2: Try keyword matching
+    word_count = len(user_message.strip().split())
+
+    # If message is long or has chat history → Groq AI with memory
+    if word_count > WORD_LIMIT or len(chat_history) > 0:
+        ai_response = ask_groq(user_message, chat_history)
+        return {
+            "response": ai_response,
+            "source": "groq_ai"
+        }
+
+    # Short message with no history → keyword match
     keyword_response = keyword_match(user_message, processed_message)
 
     if keyword_response:
@@ -91,8 +91,7 @@ def get_response(user_message: str) -> dict:
             "source": "keyword_match"
         }
     else:
-        # Step 3: Ask Groq AI
-        ai_response = ask_groq(user_message)
+        ai_response = ask_groq(user_message, chat_history)
         return {
             "response": ai_response,
             "source": "groq_ai"
