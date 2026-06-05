@@ -1,1 +1,41 @@
+/* globals.css — Global styles for MegaBot */
+/* Built by Meghana Ravi */
+/* Sets up the base theme, custom scrollbar, and font for the whole app */
+
 @import "tailwindcss";
+
+/* ─── Custom Scrollbar ───────────────────────────────────────────────────────
+   Makes the scrollbar in the chat window match the dark rose theme
+   instead of the default ugly browser scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f0a0a; /* same as page background */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #be123c44; /* rose-700 with low opacity — subtle pink tint */
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #be123c88; /* slightly brighter on hover */
+}
+
+/* ─── Base Body Styles ───────────────────────────────────────────────────────
+   Sets the default background and text color for the whole app */
+body {
+  background-color: #0f0a0a;  /* very dark warm black — Meghana's base color */
+  color: #f1f5f9;              /* slate-100 — easy to read white text */
+  -webkit-font-smoothing: antialiased; /* makes text look crisper on Mac/retina */
+}
+
+/* ─── Selection Color ────────────────────────────────────────────────────────
+   When user highlights text, it shows in rose color instead of default blue */
+::selection {
+  background: #f43f5e44;  /* rose-500 with low opacity */
+  color: #fff;
+}
+
