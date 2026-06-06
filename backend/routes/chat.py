@@ -6,7 +6,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from datetime import datetime
-import logging
 import os
 from groq import Groq
 from dotenv import load_dotenv
@@ -14,13 +13,10 @@ from dotenv import load_dotenv
 # Load the .env file to get the GROQ_API_KEY
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-router = APIRouter(tags=["Chat"])
+router = APIRouter()
 
 # Connect to Groq using the API key
-client = Groq(api_key="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")
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Shape of each message in the history list
 class HistoryMessage(BaseModel):
@@ -39,15 +35,9 @@ class ChatRequest(BaseModel):
 )
 def chat(request: ChatRequest):
     user_message = request.message.strip()
-    logger.info(f"User Message: {user_message}")
 
     if not user_message:
-        return {
-            "status": "error",
-            "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "user_message": "",
-            "bot_reply": "Please enter a message."
-        }
+        return {"bot_reply": "Please type a message!", "status": "error"}
 
     try:
         # Build conversation history for Groq
@@ -83,8 +73,7 @@ def chat(request: ChatRequest):
         bot_reply = completion.choices[0].message.content
 
     except Exception as e:
-        logger.error(f"Groq error: {e}")
-        bot_reply = "Sorry, I could not get a response from the AI. Please try again."
+        bot_reply = f"Sorry, I could not get a response from the AI. Please try again."
 
     return {
         "status": "success",
