@@ -48,14 +48,14 @@ def ask_groq(user_message: str, chat_history: list = []) -> str:
         }
     ]
 
-    # Add last 10 messages from chat history so bot remembers!
+    
     for msg in chat_history[-10:]:
         messages.append({
             "role": msg["role"] if msg["role"] != "bot" else "assistant",
             "content": msg["content"]
         })
 
-    # Add current message
+    
     messages.append({"role": "user", "content": user_message})
 
     response = groq_client.chat.completions.create(
@@ -74,7 +74,7 @@ def get_response(user_message: str, chat_history: list = []) -> dict:
 
     word_count = len(user_message.strip().split())
 
-    # If message is long or has chat history → Groq AI with memory
+    
     if word_count > WORD_LIMIT or len(chat_history) > 0:
         ai_response = ask_groq(user_message, chat_history)
         return {
@@ -82,7 +82,7 @@ def get_response(user_message: str, chat_history: list = []) -> dict:
             "source": "groq_ai"
         }
 
-    # Short message with no history → keyword match
+    
     keyword_response = keyword_match(user_message, processed_message)
 
     if keyword_response:

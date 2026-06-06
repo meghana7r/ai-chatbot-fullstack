@@ -28,7 +28,7 @@ QA_DATASET = [
         "response": "Why do programmers prefer dark mode? Because light attracts bugs! 🐛😄"
     },
     {
-        "keywords": ["gaint clout", "gaint"],
+        "keywords": ["gaint clout", "tell me about gaint clout"],
         "response": (
             "Gaint Clout is a technology company specializing in AI and Quantum Computing.\n"
             "They work across multiple domains:\n"

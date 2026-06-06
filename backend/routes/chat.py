@@ -28,7 +28,7 @@ def chat(request: ChatRequest):
     result = get_response(user_message, chat_history=history)
 
     return {
-        "bot_reply": result["response"],   # ← matches Meghana's code!
+        "bot_reply": result["response"],   
         "source": result["source"],
         "timestamp": time.time(),
         "status": "success"
