@@ -3,8 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from routes import chat
 
 app = FastAPI(
-    title="MegaBot",
-    description="Your Smart Assistant",
+    title="AI Chatbot API",
+    description="AI Chatbot using TF-IDF + NLP + Groq LLM",
     version="1.0.0"
 )
 
@@ -17,7 +17,6 @@ app.add_middleware(
 )
 
 app.include_router(chat.router)
-
 
 if __name__ == "__main__":
     import uvicorn
