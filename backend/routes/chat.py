@@ -9,12 +9,12 @@ router = APIRouter()
 
 class Message(BaseModel):
     role: str
-    content: str
+    message: str  # Meghana sends "message" not "content"
 
 
 class ChatRequest(BaseModel):
     message: str
-    chat_history: Optional[List[Message]] = []
+    history: Optional[List[Message]] = []  # Meghana sends "history"
 
 
 @router.post("/chat")
@@ -24,7 +24,12 @@ def chat(request: ChatRequest):
     if not user_message:
         return {"bot_reply": "Please type a message!", "status": "error"}
 
-    history = [m.model_dump() for m in request.chat_history]
+    # Convert Meghana's format to our format
+    history = [
+        {"role": msg.role, "content": msg.message}
+        for msg in request.history
+    ]
+
     result = get_response(user_message, chat_history=history)
 
     return {
