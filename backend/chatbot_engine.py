@@ -17,13 +17,11 @@ def ask_groq(user_message: str, chat_history: list = []) -> str:
             "content": "You are a helpful and friendly AI assistant. Answer clearly and concisely. Remember the conversation history and reply accordingly."
         }
     ]
-
     for msg in chat_history[-10:]:
         messages.append({
             "role": msg["role"] if msg["role"] != "bot" else "assistant",
             "content": msg["content"]
         })
-
     messages.append({"role": "user", "content": user_message})
 
     response = groq_client.chat.completions.create(
@@ -32,7 +30,6 @@ def ask_groq(user_message: str, chat_history: list = []) -> str:
         max_tokens=1024,
         temperature=0.7,
     )
-
     return response.choices[0].message.content
 
 
@@ -41,8 +38,8 @@ def get_response(user_message: str, chat_history: list = []) -> dict:
     Main chatbot function - Method 3:
     1. Run NLP preprocessing FIRST
     2. Try ML match with processed message
-    3. If score HIGH (>=0.5) → return dataset answer
-    4. If score LOW (<0.5) → send to Groq AI
+    3. If ML match found → return dataset answer
+    4. If no ML match → send to Groq AI with history
     """
 
     # Step 1: NLP preprocessing
@@ -52,15 +49,9 @@ def get_response(user_message: str, chat_history: list = []) -> dict:
     print(f"Original:  {user_message}")
     print(f"Processed: {processed_message}")
 
-    # Step 2: If has chat history → Groq AI for context
-    if len(chat_history) > 0:
-        ai_response = ask_groq(user_message, chat_history)
-        return {
-            "response": ai_response,
-            "source": "groq_ai"
-        }
-
-    # Step 3: Try ML match with PROCESSED message
+    # Step 2: Try ML match FIRST with processed message
+    # ML match works for simple queries like greetings,
+    # company info etc regardless of chat history
     ml_result = ml_match(processed_message, threshold=0.5)
 
     if ml_result:
@@ -72,8 +63,8 @@ def get_response(user_message: str, chat_history: list = []) -> dict:
             "matched": ml_result["matched_question"]
         }
 
-    # Step 4: Score too low → Groq AI
-    print(f"No good ML match → Groq AI")
+    # Step 3: No ML match → Groq AI with full history
+    print(f"No ML match → Groq AI")
     ai_response = ask_groq(user_message, chat_history)
     return {
         "response": ai_response,

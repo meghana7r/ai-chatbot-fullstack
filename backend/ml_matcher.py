@@ -61,7 +61,7 @@ def ml_match(user_message: str, threshold: float = 0.8):
     print(f"User cleaned: '{user_message}' → '{cleaned_message}' ({word_count} words)")
 
     # Step 3: If more than 2 words → complex → skip
-    if word_count > 1:
+    if word_count > 2:
         print("Complex message → skip ML match")
         return None
 
