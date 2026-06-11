@@ -17,7 +17,7 @@ QA_DATASET = [
     },
     {
         "keywords": ["who are you", "what are you", "your name"],
-        "response": "I'm an AI Chatbot built with FastAPI and React by Gaint Clout!"
+        "response": "I'm an AI Chatbot built with FastAPI and React "
     },
     {
         "keywords": ["what can you do", "how can you help"],
