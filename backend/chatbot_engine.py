@@ -52,7 +52,7 @@ def get_response(user_message: str, chat_history: list = []) -> dict:
     # Step 2: Try ML match FIRST with processed message
     # ML match works for simple queries like greetings,
     # company info etc regardless of chat history
-    ml_result = ml_match(processed_message, threshold=0.5)
+    ml_result = ml_match(processed_message, threshold=0.6)
 
     if ml_result:
         print(f"ML match found! Score: {ml_result['score']:.2f}")

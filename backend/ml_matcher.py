@@ -71,7 +71,7 @@ dataset_vectors = vectorizer.fit_transform(cleaned_dataset_questions)
 print(f"TF-IDF built successfully! {len(dataset_questions)} questions loaded.")
 
 
-def ml_match(user_message: str, threshold: float = 0.5):
+def ml_match(user_message: str, threshold: float = 0.6):
     """
     Match user message with dataset using TF-IDF + Cosine Similarity.
     """
