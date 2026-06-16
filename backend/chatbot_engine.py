@@ -34,24 +34,13 @@ def ask_groq(user_message: str, chat_history: list = []) -> str:
 
 
 def get_response(user_message: str, chat_history: list = []) -> dict:
-    """
-    Main chatbot function - Method 3:
-    1. Run NLP preprocessing FIRST
-    2. Try ML match with processed message
-    3. If ML match found → return dataset answer
-    4. If no ML match → send to Groq AI with history
-    """
-
-    # Step 1: NLP preprocessing
+    
     nlp_result = preprocess(user_message)
     processed_message = nlp_result["processed_text"]
 
     print(f"Original:  {user_message}")
     print(f"Processed: {processed_message}")
 
-    # Step 2: Try ML match FIRST with processed message
-    # ML match works for simple queries like greetings,
-    # company info etc regardless of chat history
     ml_result = ml_match(processed_message, threshold=0.6)
 
     if ml_result:
@@ -63,7 +52,6 @@ def get_response(user_message: str, chat_history: list = []) -> dict:
             "matched": ml_result["matched_question"]
         }
 
-    # Step 3: No ML match → Groq AI with full history
     print(f"No ML match → Groq AI")
     ai_response = ask_groq(user_message, chat_history)
     return {

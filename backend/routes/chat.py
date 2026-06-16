@@ -9,12 +9,12 @@ router = APIRouter()
 
 class Message(BaseModel):
     role: str
-    message: str  # Meghana sends "message" not "content"
+    message: str  
 
 
 class ChatRequest(BaseModel):
     message: str
-    history: Optional[List[Message]] = []  # Meghana sends "history"
+    history: Optional[List[Message]] = [] 
 
 
 @router.post("/chat")
