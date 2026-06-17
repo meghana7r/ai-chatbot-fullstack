@@ -1,60 +1,75 @@
 import os
-from groq import Groq
-from dotenv import load_dotenv
 from nlp_processor import preprocess
 from ml_matcher import ml_match
+from groq import Groq
+from rag_engine import RAGEngine
 
-load_dotenv()
+rag = RAGEngine()
 
-groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+def get_groq_client():
+    return Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-
-def ask_groq(user_message: str, chat_history: list = []) -> str:
-    messages = [
-        {
-            "role": "system",
-            "content": "You are a helpful and friendly AI assistant. Answer clearly and concisely. Remember the conversation history and reply accordingly."
-        }
-    ]
-    for msg in chat_history[-10:]:
-        messages.append({
-            "role": msg["role"] if msg["role"] != "bot" else "assistant",
-            "content": msg["content"]
-        })
-    messages.append({"role": "user", "content": user_message})
-
-    response = groq_client.chat.completions.create(
-        model=GROQ_MODEL,
-        messages=messages,
-        max_tokens=1024,
-        temperature=0.7,
-    )
-    return response.choices[0].message.content
-
-
-def get_response(user_message: str, chat_history: list = []) -> dict:
+def get_response(user_message, chat_history=[]):
+    nlp = preprocess(user_message)
+    processed_message = nlp['processed_text']
     
-    nlp_result = preprocess(user_message)
-    processed_message = nlp_result["processed_text"]
-
-    print(f"Original:  {user_message}")
-    print(f"Processed: {processed_message}")
-
-    ml_result = ml_match(processed_message, threshold=0.6)
-
+    has_document = rag.index is not None
+    
+    ml_result = ml_match(processed_message)
+    
     if ml_result:
-        print(f"ML match found! Score: {ml_result['score']:.2f}")
         return {
             "response": ml_result["response"],
-            "source": "ml_match",
-            "score": ml_result["score"],
-            "matched": ml_result["matched_question"]
+            "source": "ml_match"
         }
-
-    print(f"No ML match → Groq AI")
-    ai_response = ask_groq(user_message, chat_history)
+    
+    if has_document:
+        answer = rag.rag_answer(user_message)
+        if answer:
+            return {
+                "response": answer,
+                "source": "rag + groq"
+            }
+    
+    answer = ask_groq(user_message, chat_history)
+    
     return {
-        "response": ai_response,
+        "response": answer,
         "source": "groq_ai"
     }
+
+
+def ask_groq(user_message, chat_history=[]):
+    client = get_groq_client()
+    
+    messages = []
+    
+    messages.append({
+        "role": "system",
+        "content": "You are a helpful AI assistant for Gaint Clout."
+    })
+    
+    last_10_messages = chat_history[-10:]
+    
+    for msg in last_10_messages:
+        role = "assistant" if msg.get("role") == "bot" else msg.get("role")
+        content = msg.get("content") or msg.get("message")
+        
+        messages.append({
+            "role": role,
+            "content": content
+        })
+    
+    messages.append({
+        "role": "user",
+        "content": user_message
+    })
+    
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=messages,
+        max_tokens=1024,
+        temperature=0.7
+    )
+    
+    return response.choices[0].message.content
