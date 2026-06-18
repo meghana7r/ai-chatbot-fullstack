@@ -2,9 +2,7 @@ import os
 from nlp_processor import preprocess
 from ml_matcher import ml_match
 from groq import Groq
-from rag_engine import RAGEngine
-
-rag = RAGEngine()
+from shared_state import rag  # Import SHARED instance
 
 def get_groq_client():
     return Groq(api_key=os.getenv("GROQ_API_KEY"))
@@ -13,6 +11,7 @@ def get_response(user_message, chat_history=[]):
     nlp = preprocess(user_message)
     processed_message = nlp['processed_text']
     
+    # Check SHARED rag instance
     has_document = rag.index is not None
     
     ml_result = ml_match(processed_message)
@@ -23,6 +22,7 @@ def get_response(user_message, chat_history=[]):
             "source": "ml_match"
         }
     
+    # Use SHARED rag instance
     if has_document:
         answer = rag.rag_answer(user_message)
         if answer:
