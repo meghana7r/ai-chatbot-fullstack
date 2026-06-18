@@ -1,37 +1,24 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 import os
-from rag_engine import RAGEngine
+from shared_state import rag  # Import shared instance
 from document_processor import extract_text
 
 router = APIRouter()
-
-# Global RAG instance
-rag = RAGEngine()
 UPLOAD_FOLDER = "uploaded_documents"
-
-# Create upload folder if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-# Allowed file types
 ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.txt'}
-
 
 @router.post("/upload")
 async def upload_document(file: UploadFile = File(...)):
-    """Upload and process PDF, DOCX, or TXT file"""
-    
     try:
-        # Get file extension
         file_ext = os.path.splitext(file.filename)[1].lower()
         
-        # Validate file type
         if file_ext not in ALLOWED_EXTENSIONS:
             raise HTTPException(
                 status_code=400, 
                 detail=f"Only PDF, DOCX, and TXT files allowed. Got: {file_ext}"
             )
         
-        # Save file
         file_path = os.path.join(UPLOAD_FOLDER, file.filename)
         with open(file_path, "wb") as f:
             content = await file.read()
@@ -39,7 +26,7 @@ async def upload_document(file: UploadFile = File(...)):
         
         print(f"✓ File saved: {file_path}")
         
-        # Load into RAG
+        # Use SHARED rag instance
         rag.load_pdf(file_path, doc_name=file.filename)
         
         return {
@@ -57,8 +44,6 @@ async def upload_document(file: UploadFile = File(...)):
 
 @router.post("/search")
 async def search_rag(query: str):
-    """Search document with RAG + Groq AI answer"""
-    
     try:
         if not rag.index:
             raise HTTPException(
@@ -66,7 +51,7 @@ async def search_rag(query: str):
                 detail="No document loaded. Please upload a file first (PDF, DOCX, or TXT)."
             )
         
-        # Get answer from Groq using document context
+        # Use SHARED rag instance
         answer = rag.rag_answer(query)
         
         return {

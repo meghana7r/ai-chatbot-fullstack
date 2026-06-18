@@ -7,7 +7,7 @@ from routes.chat import router as chat_router
 from routes.rag import router as rag_router
 import uvicorn
 
-app = FastAPI(title="AI Chatbot API", version="1.0.0")
+app = FastAPI(title="Megabot", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
