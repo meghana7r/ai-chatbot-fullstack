@@ -1,13 +1,15 @@
 'use client';
 // chat/page.tsx — The main chat window
 // Built by Meghana Ravi
-// Week 3: Added sidebar for chat history + responsive mobile design
+// Week 4: API error handling | Week 5: localStorage | Week 6: Document upload section
+// Removed backend health check banner since backend has no /health route
 
 import { useState, useRef, useEffect } from 'react';
 import MessageList from '../components/MessageList';
 import ChatInput from '../components/ChatInput';
 import ChatHeader from '../components/ChatHeader';
-import { sendMessage } from '../utils/api';
+import DocumentUpload from '../components/DocumentUpload';
+import { sendMessage, ApiError } from '../utils/api';
 
 type Message = {
   id: string;
@@ -16,12 +18,11 @@ type Message = {
   timestamp: string;
 };
 
-// ChatSession — each saved session in the sidebar history
 type ChatSession = {
   id: string;
-  title: string;       // first user message as title
-  date: string;        // when it was saved
-  messages: Message[]; // full message list
+  title: string;
+  date: string;
+  messages: Message[];
 };
 
 function getTime() {
@@ -32,8 +33,15 @@ function getDate() {
   return new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
 }
 
+const STORAGE_KEY = 'megabot_chat_history';
+
+const ERROR_MESSAGES: Record<string, string> = {
+  network: '⚠️ Cannot reach MegaBot server. Make sure the backend is running on port 8000.',
+  server: '⚠️ MegaBot server returned an error. Please try again.',
+  timeout: '⚠️ MegaBot is taking too long to respond. Please try again.',
+};
+
 export default function ChatPage() {
-  // Current chat messages
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -44,24 +52,33 @@ export default function ChatPage() {
   ]);
 
   const [isLoading, setIsLoading] = useState(false);
-
-  // Sidebar — stores all previous chat sessions
-  const [chatHistory, setChatHistory] = useState<ChatSession[]>([]);
-
-  // Controls sidebar open/close on mobile
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [apiError, setApiError] = useState<ApiError>(null);
+
+  const [chatHistory, setChatHistory] = useState<ChatSession[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const bottomRef = useRef<HTMLDivElement>(null);
-
-  // messageCount — counts only user messages, shown in the header
   const messageCount = messages.filter((m) => m.role === 'user').length;
 
-  // Auto-scroll to bottom whenever new messages arrive
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(chatHistory));
+    } catch {
+      console.error('Could not save chat history to localStorage');
+    }
+  }, [chatHistory]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // handleSend — adds user message, calls API, adds bot reply
   const handleSend = async (text: string) => {
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -73,23 +90,37 @@ export default function ChatPage() {
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
     setIsLoading(true);
+    setApiError(null);
 
-    const botReply = await sendMessage(text, updatedMessages);
+    const { reply, error } = await sendMessage(
+      text,
+      updatedMessages.map((m) => ({ role: m.role, message: m.message }))
+    );
 
-    const botMessage: Message = {
-      id: (Date.now() + 1).toString(),
-      role: 'bot',
-      message: botReply,
-      timestamp: getTime(),
-    };
+    if (error) {
+      setApiError(error);
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'bot',
+        message: ERROR_MESSAGES[error],
+        timestamp: getTime(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } else {
+      setApiError(null);
+      const botMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'bot',
+        message: reply,
+        timestamp: getTime(),
+      };
+      setMessages((prev) => [...prev, botMessage]);
+    }
 
-    setMessages((prev) => [...prev, botMessage]);
     setIsLoading(false);
   };
 
-  // handleClear — saves current chat to history before clearing
   const handleClear = () => {
-    // Only save to history if there are user messages
     const userMessages = messages.filter((m) => m.role === 'user');
     if (userMessages.length > 0) {
       const session: ChatSession = {
@@ -101,53 +132,47 @@ export default function ChatPage() {
       setChatHistory((prev) => [session, ...prev]);
     }
 
-    // Reset to welcome message
     setMessages([{
       id: '1',
       role: 'bot',
       message: 'Chat cleared! 🧹 Hi, I am MegaBot — how can I help?',
       timestamp: getTime(),
     }]);
+    setApiError(null);
   };
 
-  // loadSession — loads a previous chat from sidebar
   const loadSession = (session: ChatSession) => {
     setMessages(session.messages);
-    setSidebarOpen(false); // close sidebar on mobile after selecting
+    setSidebarOpen(false);
   };
 
-  // deleteSession — removes a session from history
   const deleteSession = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setChatHistory((prev) => prev.filter((s) => s.id !== id));
   };
 
+  const deleteAllHistory = () => {
+    setChatHistory([]);
+    localStorage.removeItem(STORAGE_KEY);
+  };
+
   return (
     <div className="h-screen flex bg-[#fff8f5] overflow-hidden">
 
-      {/* ── Sidebar — chat history ── */}
-      {/* On desktop: always visible. On mobile: slides in when sidebarOpen is true */}
+      {/* Sidebar */}
       <div className={`
         fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-orange-100 flex flex-col transition-transform duration-300
         md:relative md:translate-x-0
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        {/* Sidebar header */}
         <div className="px-4 py-4 border-b border-orange-100 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-lg">🌸</span>
             <span className="text-slate-700 font-semibold text-sm">Chat History</span>
           </div>
-          {/* Close button — only visible on mobile */}
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="md:hidden text-slate-400 hover:text-rose-500 text-lg"
-          >
-            ✕
-          </button>
+          <button onClick={() => setSidebarOpen(false)} className="md:hidden text-slate-400 hover:text-rose-500 text-lg">✕</button>
         </div>
 
-        {/* New Chat button */}
         <div className="px-3 py-3 border-b border-orange-100">
           <button
             onClick={handleClear}
@@ -157,7 +182,6 @@ export default function ChatPage() {
           </button>
         </div>
 
-        {/* Session list */}
         <div className="flex-1 overflow-y-auto py-2">
           {chatHistory.length === 0 ? (
             <div className="px-4 py-8 text-center">
@@ -165,59 +189,70 @@ export default function ChatPage() {
               <p className="text-slate-300 text-xs mt-1">Start chatting to save sessions!</p>
             </div>
           ) : (
-            chatHistory.map((session) => (
-              <div
-                key={session.id}
-                onClick={() => loadSession(session)}
-                className="group mx-2 mb-1 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-rose-50 transition-all flex items-start justify-between gap-2"
-              >
-                <div className="flex-1 min-w-0">
-                  {/* Session title — first message */}
-                  <p className="text-slate-700 text-xs font-medium truncate">{session.title}</p>
-                  {/* Session date */}
-                  <p className="text-slate-400 text-[10px] mt-0.5">{session.date}</p>
-                </div>
-                {/* Delete button — appears on hover */}
-                <button
-                  onClick={(e) => deleteSession(session.id, e)}
-                  className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-rose-400 text-xs transition-all flex-shrink-0"
+            <>
+              {chatHistory.map((session) => (
+                <div
+                  key={session.id}
+                  onClick={() => loadSession(session)}
+                  className="group mx-2 mb-1 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-rose-50 transition-all flex items-start justify-between gap-2"
                 >
-                  🗑️
+                  <div className="flex-1 min-w-0">
+                    <p className="text-slate-700 text-xs font-medium truncate">{session.title}</p>
+                    <p className="text-slate-400 text-[10px] mt-0.5">{session.date}</p>
+                  </div>
+                  <button
+                    onClick={(e) => deleteSession(session.id, e)}
+                    className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-rose-400 text-xs transition-all flex-shrink-0"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              ))}
+              <div className="px-3 mt-2">
+                <button
+                  onClick={deleteAllHistory}
+                  className="w-full py-1.5 rounded-xl border border-rose-200 text-rose-400 text-xs hover:bg-rose-50 transition-all"
+                >
+                  🗑️ Clear all history
                 </button>
               </div>
-            ))
+            </>
           )}
         </div>
 
-        {/* Sidebar footer */}
+        {/* Week 6 — Document upload section for RAG */}
+        <DocumentUpload />
+
         <div className="px-4 py-3 border-t border-orange-100">
           <p className="text-slate-300 text-[10px] text-center">Built by Meghana Ravi</p>
         </div>
       </div>
 
-      {/* Mobile overlay — clicking it closes sidebar */}
       {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/30 z-20 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black/30 z-20 md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* ── Main chat area ── */}
+      {/* Main chat area */}
       <div className="flex-1 flex flex-col min-w-0">
-
-        {/* Header — passes onClear and onMenuClick for mobile sidebar toggle */}
         <ChatHeader
           messageCount={messageCount}
           onClear={handleClear}
           onMenuClick={() => setSidebarOpen(true)}
         />
 
-        {/* Scrollable message area */}
+        {apiError && (
+          <div className="bg-orange-50 border-b border-orange-200 px-4 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-orange-500 text-xs">⚠️</span>
+              <p className="text-orange-700 text-xs font-medium">{ERROR_MESSAGES[apiError]}</p>
+            </div>
+            <button onClick={() => setApiError(null)} className="text-orange-400 hover:text-orange-600 text-xs ml-4">✕</button>
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto bg-[#fff8f5] px-4 py-4">
           <MessageList messages={messages} />
 
-          {/* Typing indicator */}
           {isLoading && (
             <div className="flex gap-3 px-2 mb-4">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-500 to-orange-400 flex items-center justify-center text-white text-xs font-bold shadow-sm">
@@ -235,7 +270,6 @@ export default function ChatPage() {
           <div ref={bottomRef} />
         </div>
 
-        {/* Input bar */}
         <ChatInput onSend={handleSend} isLoading={isLoading} />
       </div>
     </div>
