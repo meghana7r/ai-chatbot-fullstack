@@ -2,7 +2,7 @@ import os
 from nlp_processor import preprocess
 from ml_matcher import ml_match
 from groq import Groq
-from shared_state import rag  # Import SHARED instance
+from rag_engine import rag
 
 def get_groq_client():
     return Groq(api_key=os.getenv("GROQ_API_KEY"))
@@ -11,9 +11,10 @@ def get_response(user_message, chat_history=[]):
     nlp = preprocess(user_message)
     processed_message = nlp['processed_text']
     
-    # Check SHARED rag instance
-    has_document = rag.index is not None
+    # Check if any documents loaded
+    has_documents = rag.has_documents()
     
+    # PRIORITY 1: ML Match (Dataset)
     ml_result = ml_match(processed_message)
     
     if ml_result:
@@ -22,15 +23,17 @@ def get_response(user_message, chat_history=[]):
             "source": "ml_match"
         }
     
-    # Use SHARED rag instance
-    if has_document:
-        answer = rag.rag_answer(user_message)
+    # PRIORITY 2: RAG (If documents loaded)
+    if has_documents:
+        answer = rag.rag_answer(user_message, use_all_docs=False)
         if answer:
             return {
                 "response": answer,
-                "source": "rag + groq"
+                "source": "rag + groq",
+                "document": rag.current_document
             }
     
+    # PRIORITY 3: Fallback to Groq
     answer = ask_groq(user_message, chat_history)
     
     return {
