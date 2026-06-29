@@ -3,15 +3,19 @@ import faiss
 import numpy as np
 from groq import Groq
 import os
+import shutil
 
 class RAGEngine:
     
-    def __init__(self):
+    def __init__(self, session_id=None):
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
         self.documents = {}
         self.current_document = None
         self.client = None
-        self.relevance_threshold = 0.4  # Minimum similarity score (0-1)
+        self.relevance_threshold = 0.4
+        self.session_id = session_id or "default"
+        self.session_folder = f"uploaded_documents/{self.session_id}"
+        os.makedirs(self.session_folder, exist_ok=True)
     
     
     def get_groq_client(self):
@@ -41,11 +45,11 @@ class RAGEngine:
         }
         
         self.current_document = doc_name
-        print(f"✓ Document '{doc_name}' loaded with {len(chunks)} chunks")
+        print(f"✓ [Session {self.session_id}] Document '{doc_name}' loaded with {len(chunks)} chunks")
     
     
     def get_documents_list(self):
-        """Get list of all uploaded documents"""
+        """Get list of all uploaded documents in this session"""
         doc_list = []
         for doc_name in self.documents.keys():
             doc_list.append({
@@ -65,7 +69,7 @@ class RAGEngine:
     
     
     def delete_document(self, doc_name):
-        """Delete a document"""
+        """Delete a document from this session"""
         if doc_name not in self.documents:
             return False
         
@@ -80,6 +84,19 @@ class RAGEngine:
         return True
     
     
+    def clear_session(self):
+        """Delete all documents and files for this session"""
+        self.documents = {}
+        self.current_document = None
+        
+        # Delete session folder
+        if os.path.exists(self.session_folder):
+            shutil.rmtree(self.session_folder)
+            os.makedirs(self.session_folder, exist_ok=True)
+        
+        print(f"✓ [Session {self.session_id}] Cleared - All files deleted")
+    
+    
     def search(self, query, top_k=3):
         """Search in current document with relevance scores"""
         if self.current_document is None:
@@ -92,18 +109,12 @@ class RAGEngine:
         index = doc['index']
         chunks = doc['chunks']
         
-        # Convert query to embedding
         query_embedding = self.model.encode([query])
         query_embedding = np.array(query_embedding).astype('float32')
         
-        # Search FAISS
         distances, indices = index.search(query_embedding, top_k)
+        similarities = 1 / (1 + distances[0])
         
-        # Convert distances to similarity scores (0-1, higher = more similar)
-        # FAISS returns L2 distances, convert to similarity
-        similarities = 1 / (1 + distances[0])  # Inverse distance = similarity
-        
-        # Retrieve chunks with scores
         results = []
         scores = []
         for idx, score in zip(indices[0], similarities):
@@ -118,10 +129,7 @@ class RAGEngine:
         if not scores:
             return False
         
-        # Average similarity score
         avg_score = np.mean(scores)
-        
-        # Return True if above threshold
         return avg_score >= self.relevance_threshold
     
     
@@ -159,20 +167,17 @@ class RAGEngine:
             context = "\n\n".join(context_parts)
         
         else:
-            # Search in current document
             relevant_chunks, scores = self.search(query, top_k=3)
             
-            # Check relevance threshold
             if not self.is_relevant(scores):
-                print(f"⚠ Low relevance (avg: {np.mean(scores):.2f}), using Groq AI instead")
-                return None  # Fall back to Groq
+                print(f"⚠ [Session {self.session_id}] Low relevance, using Groq AI instead")
+                return None
             
             if not relevant_chunks:
                 return None
             
             context = "\n".join(relevant_chunks)
         
-        # Send to Groq AI with context
         client = self.get_groq_client()
         
         messages = [
@@ -197,9 +202,25 @@ class RAGEngine:
     
     
     def has_documents(self):
-        """Check if any documents loaded"""
+        """Check if any documents loaded in this session"""
         return len(self.documents) > 0
 
 
-# Singleton RAG instance shared across all endpoints
-rag = RAGEngine()
+# Store RAG engines per session
+rag_engines = {}
+
+def get_rag_engine(session_id="default"):
+    """Get or create RAG engine for session"""
+    if session_id not in rag_engines:
+        rag_engines[session_id] = RAGEngine(session_id=session_id)
+    return rag_engines[session_id]
+
+def clear_rag_session(session_id):
+    """Clear a session and delete files"""
+    if session_id in rag_engines:
+        rag_engines[session_id].clear_session()
+        del rag_engines[session_id]
+
+def get_all_sessions():
+    """Get all active sessions"""
+    return list(rag_engines.keys())

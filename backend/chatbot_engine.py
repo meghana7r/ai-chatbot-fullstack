@@ -1,20 +1,18 @@
-from dotenv import load_dotenv
-import os
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 import os
 from nlp_processor import preprocess
 from ml_matcher import ml_match
 from groq import Groq
-from rag_engine import rag
 
 def get_groq_client():
     return Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-def get_response(user_message, chat_history=[]):
+def get_response(user_message, chat_history=[], rag=None):
+    """Get response using session-specific RAG"""
     nlp = preprocess(user_message)
     processed_message = nlp['processed_text']
     
-    has_documents = rag.has_documents()
+    # Check if session has documents
+    has_documents = rag.has_documents() if rag else False
     
     # PRIORITY 1: ML Match (Dataset)
     ml_result = ml_match(processed_message)
@@ -25,18 +23,15 @@ def get_response(user_message, chat_history=[]):
             "source": "ml_match"
         }
     
-    # PRIORITY 2: RAG (If documents loaded AND query is relevant)
+    # PRIORITY 2: RAG (If documents loaded in this session)
     if has_documents:
         answer = rag.rag_answer(user_message, use_all_docs=False)
         
-        # Only return if RAG found relevant content
         if answer:
             return {
                 "response": answer,
-                "source": "rag + groq",
-                "document": rag.current_document
+                "source": "rag + groq"
             }
-        # If RAG returned None (not relevant), fall through to Groq
     
     # PRIORITY 3: Fallback to Groq
     answer = ask_groq(user_message, chat_history)
@@ -81,4 +76,3 @@ def ask_groq(user_message, chat_history=[]):
     )
     
     return response.choices[0].message.content
-
