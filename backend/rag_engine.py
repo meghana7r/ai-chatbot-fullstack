@@ -8,11 +8,10 @@ class RAGEngine:
     
     def __init__(self):
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
-        
-        # Store multiple documents
-        self.documents = {}  # {filename: {index, chunks, embeddings}}
-        self.current_document = None  # Currently selected document
+        self.documents = {}
+        self.current_document = None
         self.client = None
+        self.relevance_threshold = 0.4  # Minimum similarity score (0-1)
     
     
     def get_groq_client(self):
@@ -26,21 +25,14 @@ class RAGEngine:
         """Load PDF and store in documents dictionary"""
         from document_processor import extract_text, split_into_chunks
         
-        # Step 1: Extract text
         text = extract_text(file_path)
-        
-        # Step 2: Split into chunks
         chunks = split_into_chunks(text)
-        
-        # Step 3: Generate embeddings
         embeddings = self.model.encode(chunks, show_progress_bar=False)
         embeddings = np.array(embeddings).astype('float32')
         
-        # Step 4: Create FAISS index
         index = faiss.IndexFlatL2(embeddings.shape[1])
         index.add(embeddings)
         
-        # Step 5: Store in documents dictionary
         self.documents[doc_name] = {
             'index': index,
             'chunks': chunks,
@@ -48,9 +40,7 @@ class RAGEngine:
             'file_path': file_path
         }
         
-        # Step 6: Set as current document
         self.current_document = doc_name
-        
         print(f"✓ Document '{doc_name}' loaded with {len(chunks)} chunks")
     
     
@@ -81,7 +71,6 @@ class RAGEngine:
         
         del self.documents[doc_name]
         
-        # If deleted current document, switch to another or None
         if self.current_document == doc_name:
             if self.documents:
                 self.current_document = list(self.documents.keys())[0]
@@ -92,12 +81,12 @@ class RAGEngine:
     
     
     def search(self, query, top_k=3):
-        """Search in current document"""
+        """Search in current document with relevance scores"""
         if self.current_document is None:
-            return []
+            return [], []
         
         if self.current_document not in self.documents:
-            return []
+            return [], []
         
         doc = self.documents[self.current_document]
         index = doc['index']
@@ -110,53 +99,58 @@ class RAGEngine:
         # Search FAISS
         distances, indices = index.search(query_embedding, top_k)
         
-        # Retrieve actual chunks
+        # Convert distances to similarity scores (0-1, higher = more similar)
+        # FAISS returns L2 distances, convert to similarity
+        similarities = 1 / (1 + distances[0])  # Inverse distance = similarity
+        
+        # Retrieve chunks with scores
         results = []
-        for idx in indices[0]:
+        scores = []
+        for idx, score in zip(indices[0], similarities):
             results.append(chunks[idx])
+            scores.append(float(score))
         
-        return results
+        return results, scores
     
     
-    def search_all_documents(self, query, top_k=3):
-        """Search across all documents"""
-        all_results = {}
+    def is_relevant(self, scores):
+        """Check if search results are relevant enough"""
+        if not scores:
+            return False
         
-        for doc_name in self.documents.keys():
-            doc = self.documents[doc_name]
-            index = doc['index']
-            chunks = doc['chunks']
-            
-            # Convert query to embedding
-            query_embedding = self.model.encode([query])
-            query_embedding = np.array(query_embedding).astype('float32')
-            
-            # Search FAISS
-            distances, indices = index.search(query_embedding, top_k)
-            
-            # Retrieve chunks
-            results = []
-            for idx in indices[0]:
-                results.append(chunks[idx])
-            
-            all_results[doc_name] = results
+        # Average similarity score
+        avg_score = np.mean(scores)
         
-        return all_results
+        # Return True if above threshold
+        return avg_score >= self.relevance_threshold
     
     
     def rag_answer(self, query, use_all_docs=False):
-        """Generate answer using RAG"""
+        """Generate answer using RAG only if relevant"""
         if self.current_document is None and not use_all_docs:
             return None
         
         if use_all_docs:
-            # Search all documents
-            all_results = self.search_all_documents(query, top_k=2)
+            all_results = {}
+            for doc_name in self.documents.keys():
+                doc = self.documents[doc_name]
+                index = doc['index']
+                chunks = doc['chunks']
+                
+                query_embedding = self.model.encode([query])
+                query_embedding = np.array(query_embedding).astype('float32')
+                distances, indices = index.search(query_embedding, top_k=2)
+                similarities = 1 / (1 + distances[0])
+                
+                results = []
+                for idx in indices[0]:
+                    results.append(chunks[idx])
+                
+                all_results[doc_name] = results
             
             if not all_results:
                 return None
             
-            # Combine results from all documents
             context_parts = []
             for doc_name, chunks in all_results.items():
                 if chunks:
@@ -165,21 +159,26 @@ class RAGEngine:
             context = "\n\n".join(context_parts)
         
         else:
-            # Search current document only
-            relevant_chunks = self.search(query, top_k=3)
+            # Search in current document
+            relevant_chunks, scores = self.search(query, top_k=3)
+            
+            # Check relevance threshold
+            if not self.is_relevant(scores):
+                print(f"⚠ Low relevance (avg: {np.mean(scores):.2f}), using Groq AI instead")
+                return None  # Fall back to Groq
             
             if not relevant_chunks:
                 return None
             
             context = "\n".join(relevant_chunks)
         
-        # Send to Groq AI
+        # Send to Groq AI with context
         client = self.get_groq_client()
         
         messages = [
             {
                 "role": "system",
-                "content": f"Use this context to answer the question: {context}"
+                "content": f"Use this context to answer: {context}"
             },
             {
                 "role": "user",
