@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+import os
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 import os
 from nlp_processor import preprocess
 from ml_matcher import ml_match
@@ -78,3 +81,4 @@ def ask_groq(user_message, chat_history=[]):
     )
     
     return response.choices[0].message.content
+
