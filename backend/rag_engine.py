@@ -12,7 +12,7 @@ class RAGEngine:
         self.documents = {}
         self.current_document = None
         self.client = None
-        self.relevance_threshold = 0.2  # Lowered threshold
+        self.relevance_threshold = 0.3  # Use max score, so 0.3 is reasonable
         self.session_id = session_id or "default"
         self.session_folder = f"uploaded_documents/{self.session_id}"
         os.makedirs(self.session_folder, exist_ok=True)
@@ -122,24 +122,27 @@ class RAGEngine:
         
         print(f"📚 Searching in {len(chunks)} chunks")
         
+        # Adjust top_k to actual number of chunks
+        actual_top_k = min(top_k, len(chunks))
+        
         # Convert query to embedding
         query_embedding = self.model.encode([query])
         query_embedding = np.array(query_embedding).astype('float32')
         
         # Search FAISS
-        distances, indices = index.search(query_embedding, top_k)
+        distances, indices = index.search(query_embedding, actual_top_k)
         
-        print(f"🔍 Raw distances: {distances[0]}")
+        print(f"🔍 Raw distances: {distances[0][:actual_top_k]}")
         
         # Convert distances to similarity scores
-        similarities = 1 / (1 + distances[0])
+        similarities = 1 / (1 + distances[0][:actual_top_k])
         
         print(f"📊 Similarity scores: {similarities}")
         
         # Retrieve chunks with scores
         results = []
         scores = []
-        for idx, score in zip(indices[0], similarities):
+        for idx, score in zip(indices[0][:actual_top_k], similarities):
             results.append(chunks[idx])
             scores.append(float(score))
             print(f"   Chunk {idx}: score={score:.3f}, text={chunks[idx][:100]}")
@@ -148,15 +151,17 @@ class RAGEngine:
     
     
     def is_relevant(self, scores):
-        """Check if search results are relevant enough"""
+        """Check if search results are relevant enough (use MAX score)"""
         if not scores:
             return False
         
-        avg_score = np.mean(scores)
-        print(f"📈 Average relevance score: {avg_score:.3f}")
+        # Use MAX score instead of average
+        # This way, if ANY chunk is relevant, we use RAG
+        max_score = np.max(scores)
+        print(f"📈 Max relevance score: {max_score:.3f}")
         print(f"📈 Threshold: {self.relevance_threshold}")
         
-        is_rel = avg_score >= self.relevance_threshold
+        is_rel = max_score >= self.relevance_threshold
         print(f"📈 Is relevant: {is_rel}")
         
         return is_rel
@@ -199,7 +204,7 @@ class RAGEngine:
             # Search in current document
             relevant_chunks, scores = self.search(query, top_k=3)
             
-            # Check relevance threshold
+            # Check relevance threshold (using MAX score)
             if not self.is_relevant(scores):
                 print(f"⚠ [Session {self.session_id}] Low relevance, using Groq AI instead")
                 return None
