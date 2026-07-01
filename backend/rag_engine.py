@@ -12,7 +12,7 @@ class RAGEngine:
         self.documents = {}
         self.current_document = None
         self.client = None
-        self.relevance_threshold = 0.4
+        self.relevance_threshold = 0.2  # Lowered threshold
         self.session_id = session_id or "default"
         self.session_folder = f"uploaded_documents/{self.session_id}"
         os.makedirs(self.session_folder, exist_ok=True)
@@ -29,8 +29,16 @@ class RAGEngine:
         """Load PDF and store in documents dictionary"""
         from document_processor import extract_text, split_into_chunks
         
+        print(f"\n🔍 LOADING PDF: {file_path}")
         text = extract_text(file_path)
+        print(f"📄 Extracted text length: {len(text)} characters")
+        print(f"📄 First 200 chars: {text[:200]}")
+        
         chunks = split_into_chunks(text)
+        print(f"📚 Total chunks: {len(chunks)}")
+        for i, chunk in enumerate(chunks):
+            print(f"   Chunk {i+1}: {len(chunk)} chars - {chunk[:100]}")
+        
         embeddings = self.model.encode(chunks, show_progress_bar=False)
         embeddings = np.array(embeddings).astype('float32')
         
@@ -89,7 +97,6 @@ class RAGEngine:
         self.documents = {}
         self.current_document = None
         
-        # Delete session folder
         if os.path.exists(self.session_folder):
             shutil.rmtree(self.session_folder)
             os.makedirs(self.session_folder, exist_ok=True)
@@ -99,27 +106,43 @@ class RAGEngine:
     
     def search(self, query, top_k=3):
         """Search in current document with relevance scores"""
+        print(f"\n🔎 SEARCHING: '{query}'")
+        
         if self.current_document is None:
+            print("⚠ No current document")
             return [], []
         
         if self.current_document not in self.documents:
+            print("⚠ Document not found in registry")
             return [], []
         
         doc = self.documents[self.current_document]
         index = doc['index']
         chunks = doc['chunks']
         
+        print(f"📚 Searching in {len(chunks)} chunks")
+        
+        # Convert query to embedding
         query_embedding = self.model.encode([query])
         query_embedding = np.array(query_embedding).astype('float32')
         
+        # Search FAISS
         distances, indices = index.search(query_embedding, top_k)
+        
+        print(f"🔍 Raw distances: {distances[0]}")
+        
+        # Convert distances to similarity scores
         similarities = 1 / (1 + distances[0])
         
+        print(f"📊 Similarity scores: {similarities}")
+        
+        # Retrieve chunks with scores
         results = []
         scores = []
         for idx, score in zip(indices[0], similarities):
             results.append(chunks[idx])
             scores.append(float(score))
+            print(f"   Chunk {idx}: score={score:.3f}, text={chunks[idx][:100]}")
         
         return results, scores
     
@@ -130,7 +153,13 @@ class RAGEngine:
             return False
         
         avg_score = np.mean(scores)
-        return avg_score >= self.relevance_threshold
+        print(f"📈 Average relevance score: {avg_score:.3f}")
+        print(f"📈 Threshold: {self.relevance_threshold}")
+        
+        is_rel = avg_score >= self.relevance_threshold
+        print(f"📈 Is relevant: {is_rel}")
+        
+        return is_rel
     
     
     def rag_answer(self, query, use_all_docs=False):
@@ -167,8 +196,10 @@ class RAGEngine:
             context = "\n\n".join(context_parts)
         
         else:
+            # Search in current document
             relevant_chunks, scores = self.search(query, top_k=3)
             
+            # Check relevance threshold
             if not self.is_relevant(scores):
                 print(f"⚠ [Session {self.session_id}] Low relevance, using Groq AI instead")
                 return None
@@ -178,6 +209,8 @@ class RAGEngine:
             
             context = "\n".join(relevant_chunks)
         
+        # Send to Groq AI with context
+        print(f"✓ Using RAG with context")
         client = self.get_groq_client()
         
         messages = [

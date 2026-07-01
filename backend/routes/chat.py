@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List
 import os
 from chatbot_engine import get_response
-from rag_engine import get_rag_engine, clear_rag_session
+from rag_engine import get_rag_engine
 
 router = APIRouter()
 
@@ -27,6 +27,8 @@ ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.txt'}
 async def upload_document(file: UploadFile = File(...), session_id: str = "default"):
     """Upload a document to a specific chat session"""
     try:
+        print(f"\n📤 UPLOADING FILE: {file.filename}, Session: {session_id}")
+        
         file_ext = os.path.splitext(file.filename)[1].lower()
         
         if file_ext not in ALLOWED_EXTENSIONS:
@@ -44,33 +46,41 @@ async def upload_document(file: UploadFile = File(...), session_id: str = "defau
             content = await file.read()
             f.write(content)
         
+        print(f"✓ File saved to: {file_path}")
+        
         # Get session's RAG engine
         rag = get_rag_engine(session_id)
+        print(f"✓ Got RAG engine for session: {session_id}")
+        print(f"✓ RAG documents before: {list(rag.documents.keys())}")
+        
         rag.load_pdf(file_path, doc_name=file.filename)
+        
+        print(f"✓ RAG documents after: {list(rag.documents.keys())}")
+        print(f"✓ Current document: {rag.current_document}")
+        print(f"✓ Has documents: {rag.has_documents()}")
         
         return {
             "status": "success",
-            "session_id": session_id,
             "message": f"Document uploaded! Chunks: {len(rag.documents[file.filename]['chunks'])}"
         }
     
     except HTTPException as e:
         raise e
     except Exception as e:
+        print(f"❌ UPLOAD ERROR: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ===== ENDPOINT 2: CHAT (Session-specific) =====
+# ===== ENDPOINT 2: CHAT =====
 
 @router.post("/")
 async def chat(request: ChatRequest):
-    """
-    Chat endpoint - session-specific
-    Only sees documents uploaded in this session
-    """
+    """Chat endpoint - session-specific"""
     try:
         user_message = request.message.strip()
         session_id = request.session_id or "default"
+        
+        print(f"\n💬 CHAT MESSAGE: {user_message}, Session: {session_id}")
         
         if not user_message:
             raise HTTPException(status_code=400, detail="Message required")
@@ -85,12 +95,23 @@ async def chat(request: ChatRequest):
         # Get session's RAG engine
         rag = get_rag_engine(session_id)
         
+        print(f"✓ Got RAG engine for session: {session_id}")
+        print(f"✓ RAG documents: {list(rag.documents.keys())}")
+        print(f"✓ Current document: {rag.current_document}")
+        print(f"✓ Has documents: {rag.has_documents()}")
+        
+        if rag.has_documents():
+            print(f"✓ WILL TRY RAG")
+        else:
+            print(f"⚠ NO DOCUMENTS - Will use Groq")
+        
         # Get response using session-specific RAG
         result = get_response(user_message, history, rag=rag)
         
+        print(f"✓ Response source: {result.get('source')}")
+        
         return {
             "status": "success",
-            "session_id": session_id,
             "bot_reply": result["response"],
             "source": result.get("source")
         }
@@ -98,41 +119,5 @@ async def chat(request: ChatRequest):
     except HTTPException as e:
         raise e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ===== ENDPOINT 3: CLEAR SESSION =====
-
-@router.delete("/session/{session_id}")
-async def clear_session(session_id: str):
-    """Clear a chat session and delete all its files"""
-    try:
-        clear_rag_session(session_id)
-        
-        return {
-            "status": "success",
-            "message": f"Session '{session_id}' cleared and files deleted"
-        }
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ===== ENDPOINT 4: LIST DOCUMENTS IN SESSION =====
-
-@router.get("/documents/{session_id}")
-async def get_session_documents(session_id: str = "default"):
-    """Get all documents in a specific session"""
-    try:
-        rag = get_rag_engine(session_id)
-        documents = rag.get_documents_list()
-        
-        return {
-            "status": "success",
-            "session_id": session_id,
-            "total_documents": len(documents),
-            "documents": documents
-        }
-    
-    except Exception as e:
+        print(f"❌ CHAT ERROR: {e}")
         raise HTTPException(status_code=500, detail=str(e))
