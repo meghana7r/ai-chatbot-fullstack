@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List
 import os
 from chatbot_engine import get_response
-from rag_engine import get_rag_engine
+from rag_engine import get_rag_engine,clear_rag_session
 
 router = APIRouter()
 
@@ -120,4 +120,19 @@ async def chat(request: ChatRequest):
         raise e
     except Exception as e:
         print(f"❌ CHAT ERROR: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+ 
+
+@router.post("/clear-session/{session_id}")
+async def clear_session_endpoint(session_id: str):
+    """Clear a session - deletes all documents and files for that session"""
+    try:
+        clear_rag_session(session_id)
+        
+        return {
+            "status": "success",
+            "message": f"Session '{session_id}' cleared"
+        }
+    
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
