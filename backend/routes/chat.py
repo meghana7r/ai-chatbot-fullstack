@@ -136,3 +136,22 @@ async def clear_session_endpoint(session_id: str):
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/documents/{session_id}")
+async def get_session_documents(session_id: str):
+    """Get list of uploaded documents for a session (for frontend to display after refresh)"""
+    try:
+        rag = get_rag_engine(session_id)
+        documents = rag.get_documents_list()
+        
+        return {
+            "status": "success",
+            "session_id": session_id,
+            "total_documents": len(documents),
+            "current_document": rag.current_document,
+            "documents": documents
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
