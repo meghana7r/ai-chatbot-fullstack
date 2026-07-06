@@ -155,3 +155,30 @@ async def get_session_documents(session_id: str):
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/delete-file/{session_id}/{doc_name}")
+async def delete_file_endpoint(session_id: str, doc_name: str):
+    """Delete a specific file - called when user clicks delete button in frontend"""
+    try:
+        rag = get_rag_engine(session_id)
+        
+        success = rag.delete_document(doc_name)
+        
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail=f"File '{doc_name}' not found in session '{session_id}'"
+            )
+        
+        return {
+            "status": "success",
+            "message": f"File '{doc_name}' deleted successfully",
+            "remaining_documents": len(rag.documents),
+            "current_document": rag.current_document
+        }
+    
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
