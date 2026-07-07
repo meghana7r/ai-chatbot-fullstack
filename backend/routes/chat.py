@@ -1,7 +1,8 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import List, Optional
 import os
+import re
 from chatbot_engine import get_response
 from rag_engine import get_rag_engine, clear_rag_session
 from database import get_db, save_chat_message, get_chat_history_from_db
@@ -10,10 +11,37 @@ from sqlalchemy.orm import Session
 
 router = APIRouter()
 
+
+# ===== VALIDATED SCHEMAS =====
+
 class ChatRequest(BaseModel):
     message: str
     history: List[dict] = []
     session_id: str = "default"
+    
+    @field_validator('message')
+    @classmethod
+    def message_must_not_be_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Message cannot be empty')
+        if len(v) > 2000:
+            raise ValueError('Message too long (max 2000 characters)')
+        return v.strip()
+    
+    @field_validator('session_id')
+    @classmethod
+    def session_id_must_be_valid(cls, v):
+        if not v or not v.strip():
+            return "default"
+        # Only allow letters, numbers, underscore, hyphen
+        if not re.match(r'^[a-zA-Z0-9_-]+$', v):
+            raise ValueError('Session ID can only contain letters, numbers, underscore, hyphen')
+        if len(v) > 100:
+            raise ValueError('Session ID too long (max 100 characters)')
+        return v
+
+
+# ===== SETUP =====
 
 UPLOAD_FOLDER = "uploaded_documents"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -21,37 +49,58 @@ ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.txt'}
 MAX_FILE_SIZE = 3 * 1024 * 1024
 
 
+# ===== ENDPOINT 1: UPLOAD DOCUMENT =====
+
 @router.post("/upload")
 async def upload_document(file: UploadFile = File(...), session_id: str = "default"):
     try:
-        print(f"\n📤 UPLOADING FILE: {file.filename}, Session: {session_id}")
+        # Validate session_id format
+        if not re.match(r'^[a-zA-Z0-9_-]+$', session_id):
+            raise HTTPException(
+                status_code=400, 
+                detail="Session ID can only contain letters, numbers, underscore, hyphen"
+            )
+        
+        # Validate filename exists
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="No filename provided")
         
         file_ext = os.path.splitext(file.filename)[1].lower()
         
         if file_ext not in ALLOWED_EXTENSIONS:
-            raise HTTPException(status_code=400, detail=f"Only PDF, DOCX, TXT allowed")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Only PDF, DOCX, TXT allowed. Got: {file_ext}"
+            )
         
         content = await file.read()
+        
+        # Validate file is not empty
+        if len(content) == 0:
+            raise HTTPException(status_code=400, detail="File is empty")
         
         if len(content) > MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=413,
-                detail=f"File too large. Max size: 3MB"
+                detail=f"File too large. Max size: 3MB. Your file: {len(content)/1024/1024:.2f}MB"
             )
         
         session_folder = f"uploaded_documents/{session_id}"
         os.makedirs(session_folder, exist_ok=True)
         
-        file_path = os.path.join(session_folder, file.filename)
+        # Sanitize filename (remove dangerous characters)
+        safe_filename = re.sub(r'[^\w\s.-]', '', file.filename)
+        
+        file_path = os.path.join(session_folder, safe_filename)
         with open(file_path, "wb") as f:
             f.write(content)
         
         rag = get_rag_engine(session_id)
-        rag.load_pdf(file_path, doc_name=file.filename)
+        rag.load_pdf(file_path, doc_name=safe_filename)
         
         return {
             "status": "success",
-            "message": f"Document uploaded! Chunks: {len(rag.documents[file.filename]['chunks'])}"
+            "message": f"Document uploaded! Chunks: {len(rag.documents[safe_filename]['chunks'])}"
         }
     
     except HTTPException as e:
@@ -60,24 +109,18 @@ async def upload_document(file: UploadFile = File(...), session_id: str = "defau
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ===== ENDPOINT 2: CHAT =====
+
 @router.post("/")
 async def chat(
     request: ChatRequest,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user_optional)
 ):
-    """
-    Chat endpoint - now saves messages to database!
-    Works for BOTH logged-in users AND guests.
-    """
     try:
-        user_message = request.message.strip()
-        session_id = request.session_id or "default"
+        user_message = request.message  # Already validated & stripped by Pydantic
+        session_id = request.session_id  # Already validated
         
-        if not user_message:
-            raise HTTPException(status_code=400, detail="Message required")
-        
-        # Get user_id if logged in, otherwise None (guest)
         user_id = current_user.id if current_user else None
         
         history = []
@@ -90,24 +133,14 @@ async def chat(
         rag = get_rag_engine(session_id)
         result = get_response(user_message, history, rag=rag)
         
-        # SAVE USER MESSAGE TO DATABASE
         save_chat_message(
-            db=db,
-            user_id=user_id,
-            session_id=session_id,
-            role="user",
-            message=user_message,
-            source=None
+            db=db, user_id=user_id, session_id=session_id,
+            role="user", message=user_message, source=None
         )
         
-        # SAVE BOT REPLY TO DATABASE
         save_chat_message(
-            db=db,
-            user_id=user_id,
-            session_id=session_id,
-            role="bot",
-            message=result["response"],
-            source=result.get("source")
+            db=db, user_id=user_id, session_id=session_id,
+            role="bot", message=result["response"], source=result.get("source")
         )
         
         return {
@@ -129,10 +162,8 @@ async def get_chat_history(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user_optional)
 ):
-    """Get past chat messages for a session"""
     try:
         user_id = current_user.id if current_user else None
-        
         messages = get_chat_history_from_db(db, session_id, user_id)
         
         history_list = []
