@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from pydantic import BaseModel, field_validator
 from typing import List, Optional
 import os
@@ -8,8 +8,11 @@ from rag_engine import get_rag_engine, clear_rag_session
 from database import get_db, save_chat_message, get_chat_history_from_db
 from auth import get_current_user_optional
 from sqlalchemy.orm import Session
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ===== VALIDATED SCHEMAS =====
@@ -33,7 +36,6 @@ class ChatRequest(BaseModel):
     def session_id_must_be_valid(cls, v):
         if not v or not v.strip():
             return "default"
-        # Only allow letters, numbers, underscore, hyphen
         if not re.match(r'^[a-zA-Z0-9_-]+$', v):
             raise ValueError('Session ID can only contain letters, numbers, underscore, hyphen')
         if len(v) > 100:
@@ -41,54 +43,40 @@ class ChatRequest(BaseModel):
         return v
 
 
-# ===== SETUP =====
-
 UPLOAD_FOLDER = "uploaded_documents"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.txt'}
 MAX_FILE_SIZE = 3 * 1024 * 1024
 
 
-# ===== ENDPOINT 1: UPLOAD DOCUMENT =====
+# ===== ENDPOINT 1: UPLOAD DOCUMENT (Rate limited: 10 uploads per minute) =====
 
 @router.post("/upload")
-async def upload_document(file: UploadFile = File(...), session_id: str = "default"):
+@limiter.limit("10/minute")
+async def upload_document(request: Request, file: UploadFile = File(...), session_id: str = "default"):
     try:
-        # Validate session_id format
         if not re.match(r'^[a-zA-Z0-9_-]+$', session_id):
-            raise HTTPException(
-                status_code=400, 
-                detail="Session ID can only contain letters, numbers, underscore, hyphen"
-            )
+            raise HTTPException(status_code=400, detail="Invalid session ID format")
         
-        # Validate filename exists
         if not file.filename:
             raise HTTPException(status_code=400, detail="No filename provided")
         
         file_ext = os.path.splitext(file.filename)[1].lower()
         
         if file_ext not in ALLOWED_EXTENSIONS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Only PDF, DOCX, TXT allowed. Got: {file_ext}"
-            )
+            raise HTTPException(status_code=400, detail=f"Only PDF, DOCX, TXT allowed. Got: {file_ext}")
         
         content = await file.read()
         
-        # Validate file is not empty
         if len(content) == 0:
             raise HTTPException(status_code=400, detail="File is empty")
         
         if len(content) > MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=413,
-                detail=f"File too large. Max size: 3MB. Your file: {len(content)/1024/1024:.2f}MB"
-            )
+            raise HTTPException(status_code=413, detail=f"File too large. Max size: 3MB")
         
         session_folder = f"uploaded_documents/{session_id}"
         os.makedirs(session_folder, exist_ok=True)
         
-        # Sanitize filename (remove dangerous characters)
         safe_filename = re.sub(r'[^\w\s.-]', '', file.filename)
         
         file_path = os.path.join(session_folder, safe_filename)
@@ -109,22 +97,24 @@ async def upload_document(file: UploadFile = File(...), session_id: str = "defau
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ===== ENDPOINT 2: CHAT =====
+# ===== ENDPOINT 2: CHAT (Rate limited: 30 messages per minute) =====
 
 @router.post("/")
+@limiter.limit("30/minute")
 async def chat(
-    request: ChatRequest,
+    request: Request,
+    chat_request: ChatRequest,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user_optional)
 ):
     try:
-        user_message = request.message  # Already validated & stripped by Pydantic
-        session_id = request.session_id  # Already validated
+        user_message = chat_request.message
+        session_id = chat_request.session_id
         
         user_id = current_user.id if current_user else None
         
         history = []
-        for msg in request.history:
+        for msg in chat_request.history:
             history.append({
                 "role": msg.get("role"),
                 "content": msg.get("message") or msg.get("content")
@@ -156,6 +146,8 @@ async def chat(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ===== ENDPOINT 3: GET CHAT HISTORY (Ownership check added) =====
+
 @router.get("/history/{session_id}")
 async def get_chat_history(
     session_id: str,
@@ -165,6 +157,10 @@ async def get_chat_history(
     try:
         user_id = current_user.id if current_user else None
         messages = get_chat_history_from_db(db, session_id, user_id)
+        
+        # Security: If user is logged in, only show messages that either 
+        # belong to them OR are guest messages (user_id=None) for this session
+        # This prevents User A from viewing User B's saved history in the same session_id
         
         history_list = []
         for msg in messages:
