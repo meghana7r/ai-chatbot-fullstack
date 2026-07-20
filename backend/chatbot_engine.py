@@ -1,4 +1,5 @@
 import os
+import time
 from nlp_processor import preprocess
 from ml_matcher import ml_match
 from groq import Groq, APIError, APITimeoutError, RateLimitError
@@ -8,37 +9,46 @@ def get_groq_client():
     return Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 def get_response(user_message, chat_history=[], rag=None):
-    """Get response using session-specific RAG"""
+    start_time = time.time()
+    
     try:
+        t1 = time.time()
         nlp = preprocess(user_message)
         processed_message = nlp['processed_text']
+        print(f"⏱️ NLP preprocessing: {time.time()-t1:.3f}s")
         
         has_documents = rag.has_documents() if rag else False
         
-        # PRIORITY 1: ML Match (Dataset)
+        t2 = time.time()
         ml_result = ml_match(processed_message)
+        print(f"⏱️ ML matching: {time.time()-t2:.3f}s")
         
         if ml_result:
+            print(f"⏱️ TOTAL TIME: {time.time()-start_time:.3f}s")
             return {
                 "response": ml_result["response"],
                 "source": "ml_match"
             }
         
-        # PRIORITY 2: RAG (If documents loaded)
         if has_documents:
             try:
+                t3 = time.time()
                 answer = rag.rag_answer(user_message, use_all_docs=False)
+                print(f"⏱️ RAG search + Groq: {time.time()-t3:.3f}s")
                 if answer:
+                    print(f"⏱️ TOTAL TIME: {time.time()-start_time:.3f}s")
                     return {
                         "response": answer,
                         "source": "rag + groq"
                     }
             except Exception as e:
                 logger.error(f"RAG search failed: {str(e)}", exc_info=True)
-                # Fall through to Groq fallback below
         
-        # PRIORITY 3: Fallback to Groq
+        t4 = time.time()
         answer = ask_groq(user_message, chat_history)
+        print(f"⏱️ Groq AI call: {time.time()-t4:.3f}s")
+        
+        print(f"⏱️ TOTAL TIME: {time.time()-start_time:.3f}s")
         
         return {
             "response": answer,
@@ -70,7 +80,7 @@ def ask_groq(user_message, chat_history=[]):
             role = "assistant" if msg.get("role") == "bot" else msg.get("role")
             content = msg.get("content") or msg.get("message")
             
-            if content:  # Skip empty messages
+            if content:
                 messages.append({
                     "role": role,
                     "content": content
@@ -86,7 +96,7 @@ def ask_groq(user_message, chat_history=[]):
             messages=messages,
             max_tokens=1024,
             temperature=0.7,
-            timeout=30  # 30 second timeout
+            timeout=30
         )
         
         return response.choices[0].message.content
