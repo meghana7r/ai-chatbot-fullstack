@@ -15,11 +15,11 @@ class RAGEngine:
         self.document_upload_order = []
         self.current_document = None
         self.client = None
-        self.relevance_threshold = 0.3
+        self.relevance_threshold = 0.5  # RAISED from 0.3 to be stricter
         self.session_id = session_id or "default"
         self.session_folder = f"uploaded_documents/{self.session_id}"
         self.max_documents_per_session = 5
-        self.upload_lock = threading.Lock()  # Prevent race conditions
+        self.upload_lock = threading.Lock()
         os.makedirs(self.session_folder, exist_ok=True)
     
     def get_groq_client(self):
@@ -28,37 +28,23 @@ class RAGEngine:
         return self.client
     
     def cleanup_old_documents(self):
-        print(f"\n🧹 CLEANUP CHECK: {len(self.documents)}/{self.max_documents_per_session} documents")
-        print(f"🧹 Upload order (oldest→newest): {self.document_upload_order}")
-        
         while len(self.documents) > self.max_documents_per_session:
             oldest_doc = self.document_upload_order.pop(0)
-            print(f"🗑️ REMOVING OLDEST: {oldest_doc}")
-            
             if oldest_doc in self.documents:
                 file_path = self.documents[oldest_doc].get('file_path')
-                
                 if file_path and os.path.exists(file_path):
                     os.remove(file_path)
-                    print(f"✓ File deleted from disk: {file_path}")
-                
                 del self.documents[oldest_doc]
-                
                 if self.current_document == oldest_doc:
                     if self.documents:
                         self.current_document = self.document_upload_order[-1] if self.document_upload_order else list(self.documents.keys())[0]
                     else:
                         self.current_document = None
-        
-        print(f"🧹 CLEANUP DONE: {len(self.documents)}/{self.max_documents_per_session}")
-        print(f"🧹 Remaining order: {self.document_upload_order}")
     
     def load_pdf(self, file_path, doc_name="document"):
         from document_processor import extract_text, split_into_chunks
         
-        # LOCK: Ensure only ONE upload processes at a time per session
         with self.upload_lock:
-            print(f"\n🔍 LOADING PDF: {file_path} (timestamp: {time.time()})")
             text = extract_text(file_path)
             chunks = split_into_chunks(text)
             
@@ -80,12 +66,9 @@ class RAGEngine:
                 self.document_upload_order.remove(doc_name)
             self.document_upload_order.append(doc_name)
             
-            print(f"✓ Upload order NOW: {self.document_upload_order}")
-            
             self.cleanup_old_documents()
-            
             self.current_document = doc_name
-            print(f"✓ Final order: {self.document_upload_order}")
+            print(f"✓ [Session {self.session_id}] Document '{doc_name}' loaded with {len(chunks)} chunks")
     
     def get_documents_list(self):
         doc_list = []
@@ -138,8 +121,6 @@ class RAGEngine:
         if os.path.exists(self.session_folder):
             shutil.rmtree(self.session_folder)
             os.makedirs(self.session_folder, exist_ok=True)
-        
-        print(f"✓ [Session {self.session_id}] Cleared - All files deleted")
     
     def search(self, query, top_k=3):
         if self.current_document is None:
@@ -171,7 +152,10 @@ class RAGEngine:
     def is_relevant(self, scores):
         if not scores:
             return False
+        
         max_score = np.max(scores)
+        print(f"📈 RELEVANCE CHECK - Max score: {max_score:.3f} | Threshold: {self.relevance_threshold} | Will use RAG: {max_score >= self.relevance_threshold}")
+        
         return max_score >= self.relevance_threshold
     
     def rag_answer(self, query, use_all_docs=False):
@@ -181,12 +165,14 @@ class RAGEngine:
         relevant_chunks, scores = self.search(query, top_k=3)
         
         if not self.is_relevant(scores):
+            print(f"⚠ [Session {self.session_id}] Query not relevant to document, using Groq AI instead")
             return None
         
         if not relevant_chunks:
             return None
         
         context = "\n".join(relevant_chunks)
+        
         client = self.get_groq_client()
         
         messages = [
@@ -197,7 +183,7 @@ class RAGEngine:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=messages,
-            max_tokens=512,
+            max_tokens=400,
             temperature=0.7
         )
         
