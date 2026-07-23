@@ -15,7 +15,7 @@ from logger_config import logger
 import uvicorn
 import os
 
-app = FastAPI(title="AI Chatbot API", version="1.0.0")
+app = FastAPI(title="MegaBot", version="1.0.0")
 
 # ===== RATE LIMITING SETUP =====
 limiter = Limiter(key_func=get_remote_address)
