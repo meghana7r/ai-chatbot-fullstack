@@ -1,23 +1,31 @@
-// api.ts — connects frontend to MegaBot backend
-// Built by Meghana Ravi
-// Week 4: API error handling | Week 6: RAG document upload
+
 
 const BACKEND_URL = 'http://127.0.0.1:8000';
 
 export type ApiError = 'network' | 'server' | 'timeout' | null;
 
+// Generate unique session ID for each chat session
+export const generateSessionId = (): string => {
+  return `chat_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+};
+
 export async function sendMessage(
   message: string,
-  history: { role: string; message: string }[] = []
+  history: { role: string; message: string }[] = [],
+  sessionId: string = 'default'
 ): Promise<{ reply: string; error: ApiError }> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000);
 
-    const response = await fetch(`${BACKEND_URL}/chat`, {
+    const response = await fetch(`${BACKEND_URL}/chat/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, history }),
+      body: JSON.stringify({
+        message,
+        history,
+        session_id: sessionId,
+      }),
       signal: controller.signal,
     });
 
@@ -38,27 +46,19 @@ export async function sendMessage(
   }
 }
 
-export async function checkBackendHealth(): Promise<boolean> {
-  try {
-    const response = await fetch(`${BACKEND_URL}/health`, { method: 'GET' });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
-// uploadDocument — Week 6: sends a file to the RAG backend for indexing
+// Upload document with session_id
 export async function uploadDocument(
-  file: File
+  file: File,
+  sessionId: string
 ): Promise<{ success: boolean; message: string }> {
   try {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${BACKEND_URL}/rag/upload`, {
-      method: 'POST',
-      body: formData,
-    });
+    const response = await fetch(
+      `${BACKEND_URL}/chat/upload?session_id=${sessionId}`,
+      { method: 'POST', body: formData }
+    );
 
     const data = await response.json();
 
@@ -68,7 +68,60 @@ export async function uploadDocument(
 
     return { success: true, message: data.message || 'Document uploaded successfully!' };
 
-  } catch (error) {
+  } catch {
     return { success: false, message: 'Could not reach the server. Make sure backend is running.' };
+  }
+}
+
+// Fetch document list for a session
+export async function fetchDocuments(sessionId: string): Promise<{
+  documents: { name: string; chunks: number; is_current: boolean }[];
+  current_document: string | null;
+}> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/chat/documents/${sessionId}`);
+    const data = await response.json();
+
+    if (data.status === 'success') {
+      return {
+        documents: data.documents || [],
+        current_document: data.current_document || null,
+      };
+    }
+    return { documents: [], current_document: null };
+  } catch {
+    return { documents: [], current_document: null };
+  }
+}
+
+// Delete a single document from a session
+export async function deleteDocument(
+  sessionId: string,
+  docName: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const response = await fetch(
+      `${BACKEND_URL}/chat/delete-file/${sessionId}/${encodeURIComponent(docName)}`,
+      { method: 'DELETE' }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, message: data.detail || 'Delete failed' };
+    }
+
+    return { success: true, message: data.message || 'File deleted successfully' };
+  } catch {
+    return { success: false, message: 'Could not reach the server.' };
+  }
+}
+
+// Clear session when switching/closing chat
+export async function clearSession(sessionId: string): Promise<void> {
+  try {
+    await fetch(`${BACKEND_URL}/chat/clear-session/${sessionId}`, { method: 'POST' });
+  } catch {
+    // fail silently
   }
 }

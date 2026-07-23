@@ -1,15 +1,14 @@
 'use client';
 // chat/page.tsx — The main chat window
 // Built by Meghana Ravi
-// Week 4: API error handling | Week 5: localStorage | Week 6: Document upload section
-// Removed backend health check banner since backend has no /health route
+// Week 7: UI improvements, character counter, better UX, validations
 
 import { useState, useRef, useEffect } from 'react';
 import MessageList from '../components/MessageList';
 import ChatInput from '../components/ChatInput';
 import ChatHeader from '../components/ChatHeader';
 import DocumentUpload from '../components/DocumentUpload';
-import { sendMessage, ApiError } from '../utils/api';
+import { sendMessage, generateSessionId, clearSession, ApiError } from '../utils/api';
 
 type Message = {
   id: string;
@@ -23,6 +22,7 @@ type ChatSession = {
   title: string;
   date: string;
   messages: Message[];
+  sessionId: string;
 };
 
 function getTime() {
@@ -34,6 +34,7 @@ function getDate() {
 }
 
 const STORAGE_KEY = 'megabot_chat_history';
+const SESSION_STORAGE_KEY = 'current_session';
 
 const ERROR_MESSAGES: Record<string, string> = {
   network: '⚠️ Cannot reach MegaBot server. Make sure the backend is running on port 8000.',
@@ -55,6 +56,20 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [apiError, setApiError] = useState<ApiError>(null);
 
+  // Unique session ID per chat
+  const [sessionId, setSessionId] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(SESSION_STORAGE_KEY);
+      if (saved) return saved;
+      const newId = generateSessionId();
+      localStorage.setItem(SESSION_STORAGE_KEY, newId);
+      return newId;
+    } catch {
+      return generateSessionId();
+    }
+  });
+
+  // Load chat history from localStorage
   const [chatHistory, setChatHistory] = useState<ChatSession[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -67,19 +82,28 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const messageCount = messages.filter((m) => m.role === 'user').length;
 
+  // Save chat history to localStorage
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(chatHistory));
     } catch {
-      console.error('Could not save chat history to localStorage');
+      console.error('Could not save chat history');
     }
   }, [chatHistory]);
 
+  // Auto scroll to bottom
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const handleSend = async (text: string) => {
+    // Input validation
+    if (!text.trim()) return;
+    if (text.length > 2000) {
+      setApiError('server');
+      return;
+    }
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -94,7 +118,8 @@ export default function ChatPage() {
 
     const { reply, error } = await sendMessage(
       text,
-      updatedMessages.map((m) => ({ role: m.role, message: m.message }))
+      updatedMessages.map((m) => ({ role: m.role, message: m.message })),
+      sessionId
     );
 
     if (error) {
@@ -120,7 +145,7 @@ export default function ChatPage() {
     setIsLoading(false);
   };
 
-  const handleClear = () => {
+  const handleClear = async () => {
     const userMessages = messages.filter((m) => m.role === 'user');
     if (userMessages.length > 0) {
       const session: ChatSession = {
@@ -128,9 +153,16 @@ export default function ChatPage() {
         title: userMessages[0].message.slice(0, 40) + (userMessages[0].message.length > 40 ? '...' : ''),
         date: getDate(),
         messages: messages,
+        sessionId: sessionId,
       };
       setChatHistory((prev) => [session, ...prev]);
     }
+
+    await clearSession(sessionId);
+
+    const newSessionId = generateSessionId();
+    setSessionId(newSessionId);
+    localStorage.setItem(SESSION_STORAGE_KEY, newSessionId);
 
     setMessages([{
       id: '1',
@@ -143,6 +175,8 @@ export default function ChatPage() {
 
   const loadSession = (session: ChatSession) => {
     setMessages(session.messages);
+    setSessionId(session.sessionId || 'default');
+    localStorage.setItem(SESSION_STORAGE_KEY, session.sessionId || 'default');
     setSidebarOpen(false);
   };
 
@@ -220,8 +254,8 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* Week 6 — Document upload section for RAG */}
-        <DocumentUpload />
+        {/* Document Upload */}
+        <DocumentUpload sessionId={sessionId} />
 
         <div className="px-4 py-3 border-t border-orange-100">
           <p className="text-slate-300 text-[10px] text-center">Built by Meghana Ravi</p>
@@ -264,6 +298,7 @@ export default function ChatPage() {
                   <span className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
                   <span className="w-2 h-2 bg-yellow-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
                 </div>
+                <p className="text-slate-400 text-[10px] mt-1">MegaBot is typing...</p>
               </div>
             </div>
           )}
