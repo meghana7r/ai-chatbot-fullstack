@@ -1,7 +1,3 @@
-// page.tsx — MegaBot Homepage
-// Built by Meghana Ravi
-// Landing page with Learn More modal popup
-
 'use client';
 
 import Link from 'next/link';
@@ -84,19 +80,15 @@ export default function Home() {
 
       {/* Footer */}
       <p className="mt-12 text-slate-400 text-xs">
-        Built by{' '}
-        <span className="text-rose-500 font-medium">Meghana Ravi</span>
-        {' '}· Next.js · TypeScript · Tailwind CSS
+        Built with Next.js · TypeScript · Tailwind CSS
       </p>
 
       {/* ── Learn More Modal ── */}
       {showModal && (
-        // Dark overlay — clicking it closes the modal
         <div
           className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4"
           onClick={() => setShowModal(false)}
         >
-          {/* Modal box — stop click from closing when clicking inside */}
           <div
             className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative"
             onClick={(e) => e.stopPropagation()}
@@ -115,11 +107,8 @@ export default function Home() {
                 M
               </div>
               <div>
-                <div>
-  <h2 className="text-slate-900 font-bold text-lg">About MegaBot</h2>
-  <p className="text-slate-400 text-xs">Frontend: Meghana Ravi · Backend: Amrutha Varshini</p>
-</div>
-              
+                <h2 className="text-slate-900 font-bold text-lg">About MegaBot</h2>
+                <p className="text-slate-400 text-xs">Frontend: Meghana Ravi · Backend: Amrutha Varshini</p>
               </div>
             </div>
 
@@ -166,20 +155,22 @@ export default function Home() {
                 </div>
               ))}
             </div>
-{/* Built by section */}
-<div className="mt-6 p-4 bg-rose-50 rounded-xl border border-rose-100">
-  <p className="text-slate-500 text-xs font-semibold mb-2">👩‍💻 Built by</p>
-  <div className="flex justify-between">
-    <div>
-      <p className="text-slate-700 text-sm font-medium">Meghana Ravi</p>
-      <p className="text-rose-400 text-xs">Frontend Developer</p>
-    </div>
-    <div className="text-right">
-      <p className="text-slate-700 text-sm font-medium">Amrutha Varshini</p>
-      <p className="text-rose-400 text-xs">Backend Developer</p>
-    </div>
-  </div>
-</div>
+
+            {/* Built by section */}
+            <div className="mt-6 p-4 bg-rose-50 rounded-xl border border-rose-100">
+              <p className="text-slate-500 text-xs font-semibold mb-2">👩‍💻 Built by</p>
+              <div className="flex justify-between">
+                <div>
+                  <p className="text-slate-700 text-sm font-medium">Meghana Ravi</p>
+                  <p className="text-rose-400 text-xs">Frontend Developer</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-slate-700 text-sm font-medium">Amrutha Varshini</p>
+                  <p className="text-rose-400 text-xs">Backend Developer</p>
+                </div>
+              </div>
+            </div>
+
             {/* Modal footer button */}
             <Link href="/chat">
               <button className="mt-6 w-full py-3 rounded-full bg-gradient-to-r from-rose-500 to-orange-500 text-white font-semibold text-sm hover:opacity-90 transition-all">
